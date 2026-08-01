@@ -44,16 +44,11 @@ int main(int argc, char** argv) {
         const auto root = argc > 1
             ? std::filesystem::path(argv[1])
             : std::filesystem::current_path();
-        const auto xmas_root = argc > 2
-            ? std::filesystem::path(argv[2])
-            : std::filesystem::path{};
-        skyroads::RecoveredGame game(root, xmas_root);
+        skyroads::RecoveredGame game(root);
         require(game.level_count() ==
-                (xmas_root.empty() ? skyroads::kOriginalLevelCount
-                                   : skyroads::kCombinedLevelCount),
+                (game.has_xmas_levels() ? skyroads::kCombinedLevelCount
+                                        : skyroads::kOriginalLevelCount),
             "Native reconstruction exposed the wrong campaign level count");
-        require(game.has_xmas_levels() == !xmas_root.empty(),
-            "SkyRoads Xmas campaign availability is wrong");
         require(game.screen() == skyroads::NativeScreen::Intro,
             "Native reconstruction should begin in the recovered DOS intro");
         require(game.indexed_pixels().size() == 320u * 200u &&
@@ -118,7 +113,7 @@ int main(int argc, char** argv) {
         }
 
         {
-            skyroads::RecoveredGame editor_game(root, xmas_root);
+            skyroads::RecoveredGame editor_game(root);
             input.enter_pressed = true;
             editor_game.timer_tick(input);
             input = {};

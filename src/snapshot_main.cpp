@@ -14,9 +14,7 @@ int main(int argc, char** argv) {
         const auto view = argc > 3 ? std::string(argv[3]) : std::string("game");
         const bool xmas_view = view == "xmas-levels" || view == "xmas-game" ||
             view == "creations" || view == "editor" || view == "custom-game";
-        const auto xmas_root = xmas_view
-            ? root.parent_path() / "skyxmas" : std::filesystem::path{};
-        skyroads::RecoveredGame game(root, xmas_root);
+        skyroads::RecoveredGame game(root);
         skyroads::NativeInput input;
         if (view != "intro" && view != "demo") {
             input.enter_pressed = true;

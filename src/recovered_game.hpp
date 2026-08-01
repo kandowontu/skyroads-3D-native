@@ -79,9 +79,7 @@ struct OplRegisterWrite {
 
 class RecoveredGame final {
 public:
-    explicit RecoveredGame(
-        const std::filesystem::path& data_root,
-        const std::filesystem::path& xmas_data_root = {});
+    explicit RecoveredGame(const std::filesystem::path& data_root);
     ~RecoveredGame();
     RecoveredGame(RecoveredGame&&) noexcept;
     RecoveredGame& operator=(RecoveredGame&&) noexcept;

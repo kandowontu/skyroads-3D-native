@@ -1,5 +1,6 @@
 #include "recovered_game.hpp"
 #include "custom_levels.hpp"
+#include "embedded_game_data.hpp"
 #include "expanded_level_menu.hpp"
 
 extern "C" {
@@ -135,6 +136,16 @@ std::filesystem::path find_original_executable(
     }
     throw std::runtime_error(
         "The game folder must contain an original SKYROADS.EXE or SKYXMAS.EXE");
+}
+
+std::vector<std::uint8_t> read_embedded_file(
+    EmbeddedCampaign campaign,
+    const std::string& name) {
+    const auto bytes = embedded_game_file(campaign, lower_ascii(name));
+    if (bytes.empty()) {
+        throw std::runtime_error("Missing embedded original SkyRoads file: " + name);
+    }
+    return {bytes.begin(), bytes.end()};
 }
 
 void copy_palette(
@@ -341,13 +352,8 @@ std::uint16_t menu_key(const NativeInput& input) {
 } // namespace
 
 struct RecoveredGame::Impl {
-    explicit Impl(
-        std::filesystem::path root_path,
-        std::filesystem::path xmas_root_path)
+    explicit Impl(std::filesystem::path root_path)
         : root(std::filesystem::absolute(std::move(root_path))),
-          xmas_root(xmas_root_path.empty()
-              ? std::filesystem::path{}
-              : std::filesystem::absolute(std::move(xmas_root_path))),
           indexed(kFramebufferSize), rgba(kFramebufferSize),
           gameplay_background(kFramebufferSize) {
         load_all();
@@ -378,7 +384,6 @@ struct RecoveredGame::Impl {
     }
 
     std::filesystem::path root;
-    std::filesystem::path xmas_root;
     std::filesystem::path custom_level_directory;
     std::vector<std::uint8_t> indexed;
     std::vector<std::uint32_t> rgba;
@@ -528,12 +533,12 @@ struct RecoveredGame::Impl {
 
     void load_all() {
         auto exe = read_file(find_original_executable(root));
-        auto roads_bytes = read_file(find_file(root, "roads.lzs"));
-        auto trek_bytes = read_file(find_file(root, "trekdat.lzs"));
-        auto car_bytes = read_file(find_file(root, "cars.lzs"));
-        auto dash_bytes = read_file(find_file(root, "dashbrd.lzs"));
-        auto music_bytes = read_file(find_file(root, "muzax.lzs"));
-        auto sfx_bytes = read_file(find_file(root, "sfx.snd"));
+        auto roads_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "roads.lzs");
+        auto trek_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "trekdat.lzs");
+        auto car_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "cars.lzs");
+        auto dash_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "dashbrd.lzs");
+        auto music_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "muzax.lzs");
+        auto sfx_bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, "sfx.snd");
 
         require_file_load(
             sr_load_road_archive(roads_bytes.data(), roads_bytes.size(), &roads) ==
@@ -571,7 +576,9 @@ struct RecoveredGame::Impl {
             "dashbrd.lzs");
 
         for (std::size_t index = 0; index < worlds.size(); ++index) {
-            auto bytes = read_file(find_file(root, "world" + std::to_string(index) + ".lzs"));
+            auto bytes = read_embedded_file(
+                EmbeddedCampaign::SkyRoads,
+                "world" + std::to_string(index) + ".lzs");
             require_file_load(
                 sr_load_vga_graphics_archive(
                     bytes.data(), bytes.size(), SR_WORLD_PALETTE_BASE,
@@ -593,12 +600,13 @@ struct RecoveredGame::Impl {
         load_level_menu();
         load_help_pages();
         load_intro_assets();
-        demo_record = read_file(find_file(root, "demo.rec"));
+        demo_record = read_embedded_file(EmbeddedCampaign::SkyRoads, "demo.rec");
     }
 
     void load_xmas_levels() {
-        if (xmas_root.empty()) return;
-        auto roads_bytes = read_file(find_file(xmas_root, "roads.lzs"));
+        if (!embedded_xmas_data_available()) return;
+        auto roads_bytes = read_embedded_file(
+            EmbeddedCampaign::SkyRoadsXmas, "roads.lzs");
         require_file_load(
             sr_load_road_archive(
                 roads_bytes.data(), roads_bytes.size(), &xmas_roads) ==
@@ -606,8 +614,9 @@ struct RecoveredGame::Impl {
                 xmas_roads.road_count == kXmasLevelCount + 1u,
             "SkyRoads Xmas roads.lzs");
         for (std::size_t index = 0; index < xmas_worlds.size(); ++index) {
-            auto bytes = read_file(find_file(
-                xmas_root, "world" + std::to_string(index) + ".lzs"));
+            auto bytes = read_embedded_file(
+                EmbeddedCampaign::SkyRoadsXmas,
+                "world" + std::to_string(index) + ".lzs");
             require_file_load(
                 sr_load_vga_graphics_archive(
                     bytes.data(), bytes.size(), SR_WORLD_PALETTE_BASE,
@@ -618,14 +627,15 @@ struct RecoveredGame::Impl {
     }
 
     void load_display(const std::string& name, std::size_t count, SrDisplayTable& table) {
-        const auto bytes = read_file(find_file(root, name));
+        const auto bytes = read_embedded_file(EmbeddedCampaign::SkyRoads, name);
         require_file_load(
             sr_load_display_table(bytes.data(), bytes.size(), count, &table) != 0,
             name);
     }
 
     void load_main_menu() {
-        auto main_bytes = read_file(find_file(root, "mainmenu.lzs"));
+        auto main_bytes = read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "mainmenu.lzs");
         require_file_load(
             sr_load_vga_graphics_archive(
                 main_bytes.data(), main_bytes.size(), 0xbe, &main_assets.items) ==
@@ -645,7 +655,8 @@ struct RecoveredGame::Impl {
                 ? first : second == third ? second : 0u;
         }
 
-        AssetStream intro(read_file(find_file(root, "intro.lzs")));
+        AssetStream intro(read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "intro.lzs"));
         intro.color_map(main_assets.palette, 0x00);
         auto background = intro.picture(0x00);
         require_file_load(
@@ -664,7 +675,8 @@ struct RecoveredGame::Impl {
     }
 
     void load_settings_menu() {
-        AssetStream stream(read_file(find_file(root, "setmenu.lzs")));
+        AssetStream stream(read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "setmenu.lzs"));
         stream.color_map(settings_assets.palette, 0xc8);
         auto background = stream.picture(0xc8);
         require_file_load(
@@ -678,7 +690,8 @@ struct RecoveredGame::Impl {
     }
 
     void load_level_menu() {
-        AssetStream stream(read_file(find_file(root, "gomenu.lzs")));
+        AssetStream stream(read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "gomenu.lzs"));
         const auto background_palette = stream.color_map_section(0x00);
         apply_palette_section(level_assets.palette, background_palette);
         level_assets.base_color_count = background_palette.count();
@@ -705,7 +718,8 @@ struct RecoveredGame::Impl {
     }
 
     void load_xmas_level_menu_art() {
-        AssetStream stream(read_file(find_file(xmas_root, "gomenu.lzs")));
+        AssetStream stream(read_embedded_file(
+            EmbeddedCampaign::SkyRoadsXmas, "gomenu.lzs"));
         const auto xmas_palette = stream.color_map_section(0x00);
         auto background = stream.picture(0x00);
         require_file_load(
@@ -777,7 +791,8 @@ struct RecoveredGame::Impl {
     }
 
     void load_help_pages() {
-        AssetStream stream(read_file(find_file(root, "helpmenu.lzs")));
+        AssetStream stream(read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "helpmenu.lzs"));
         for (auto& page : help_pages) {
             stream.color_map(page.palette, 0xc8);
             auto picture = stream.picture(0xc8);
@@ -788,7 +803,8 @@ struct RecoveredGame::Impl {
     }
 
     void load_intro_assets() {
-        AssetStream stream(read_file(find_file(root, "intro.lzs")));
+        AssetStream stream(read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "intro.lzs"));
         intro_assets.background_palette = stream.color_map_section(0x00);
         auto background = stream.picture(0x00);
         require_file_load(
@@ -803,13 +819,15 @@ struct RecoveredGame::Impl {
             intro_assets.cards[index] = stream.picture(0xa0);
         }
 
-        const auto animation_bytes = read_file(find_file(root, "anim.lzs"));
+        const auto animation_bytes = read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "anim.lzs");
         require_file_load(
             sr_load_animation_archive(
                 animation_bytes.data(), animation_bytes.size(),
                 &intro_assets.animation) == SR_ANIMATION_ARCHIVE_OK,
             "anim.lzs");
-        intro_assets.sample = read_file(find_file(root, "intro.snd"));
+        intro_assets.sample = read_embedded_file(
+            EmbeddedCampaign::SkyRoads, "intro.snd");
 
         copy_palette(
             intro_animation_palette, 0, intro_assets.animation.palette,
@@ -2266,10 +2284,8 @@ struct RecoveredGame::Impl {
     }
 };
 
-RecoveredGame::RecoveredGame(
-    const std::filesystem::path& data_root,
-    const std::filesystem::path& xmas_data_root)
-    : impl_(std::make_unique<Impl>(data_root, xmas_data_root)) {}
+RecoveredGame::RecoveredGame(const std::filesystem::path& data_root)
+    : impl_(std::make_unique<Impl>(data_root)) {}
 
 RecoveredGame::~RecoveredGame() = default;
 RecoveredGame::RecoveredGame(RecoveredGame&&) noexcept = default;

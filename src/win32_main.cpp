@@ -4,7 +4,6 @@
 
 #include <windows.h>
 #include <mmsystem.h>
-#include <shellapi.h>
 
 #include <algorithm>
 #include <array>
@@ -84,17 +83,6 @@ std::uint16_t normalize_joystick_axis(
         (position * kDosJoystickAxisMaximum + range / 2u) / range);
 }
 
-std::vector<std::wstring> arguments() {
-    int count = 0;
-    auto** raw = CommandLineToArgvW(GetCommandLineW(), &count);
-    std::vector<std::wstring> result;
-    if (raw) {
-        for (int index = 0; index < count; ++index) result.emplace_back(raw[index]);
-        LocalFree(raw);
-    }
-    return result;
-}
-
 std::filesystem::path executable_directory() {
     std::wstring buffer(32768, L'\0');
     const auto size = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
@@ -103,60 +91,23 @@ std::filesystem::path executable_directory() {
     return std::filesystem::path(buffer).parent_path();
 }
 
-bool has_game_data(const std::filesystem::path& path) {
+bool has_original_executable(const std::filesystem::path& path) {
     std::error_code error;
     if (!std::filesystem::is_directory(path, error)) return false;
-    const bool has_original_executable =
+    return
         std::filesystem::is_regular_file(path / "skyroads.exe", error) ||
         std::filesystem::is_regular_file(path / "skyxmas.exe", error);
-    return has_original_executable &&
-        std::filesystem::is_regular_file(path / "roads.lzs", error);
-}
-
-bool has_xmas_level_data(const std::filesystem::path& path) {
-    std::error_code error;
-    if (!std::filesystem::is_directory(path, error) ||
-        !std::filesystem::is_regular_file(path / "roads.lzs", error)) return false;
-    for (unsigned index = 0; index < 10u; ++index) {
-        if (!std::filesystem::is_regular_file(
-                path / ("world" + std::to_string(index) + ".lzs"), error)) {
-            return false;
-        }
-    }
-    return true;
 }
 
 std::filesystem::path locate_data_root() {
     const auto executable = executable_directory();
-    if (has_game_data(executable)) {
+    if (has_original_executable(executable)) {
         return std::filesystem::absolute(executable);
     }
     throw std::runtime_error(
         "The running folder must contain an original SKYROADS.EXE or "
-        "SKYXMAS.EXE and its original game data files.\n\n"
-        "Copy skyroads_native.exe into that folder, or copy the original "
-        "game files beside skyroads_native.exe.");
-}
-
-std::filesystem::path locate_xmas_data_root(
-    const std::filesystem::path& data_root) {
-    const auto args = arguments();
-    for (std::size_t index = 1; index + 1 < args.size(); ++index) {
-        if (args[index] == L"--xmas-data-dir") {
-            return std::filesystem::absolute(args[index + 1]);
-        }
-    }
-    const auto executable = executable_directory();
-    const std::array candidates{
-        data_root / "skyxmas",
-        data_root.parent_path() / "skyxmas",
-        executable / "skyxmas",
-        executable.parent_path() / "skyxmas",
-    };
-    for (const auto& candidate : candidates) {
-        if (has_xmas_level_data(candidate)) return std::filesystem::absolute(candidate);
-    }
-    return {};
+        "SKYXMAS.EXE.\n\nCopy either original DOS executable beside "
+        "skyroads_native.exe; the required game archives are built in.");
 }
 
 NativeInput collect_input() {
@@ -371,8 +322,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command) {
     SetProcessDPIAware();
     try {
         g_data_root = locate_data_root();
-        const auto xmas_data_root = locate_xmas_data_root(g_data_root);
-        g_game = std::make_unique<RecoveredGame>(g_data_root, xmas_data_root);
+        g_game = std::make_unique<RecoveredGame>(g_data_root);
         skyroads::Win32OplAudio opl_audio;
         const auto initial_opl_writes = g_game->consume_opl_writes();
         opl_audio.write_registers(initial_opl_writes);

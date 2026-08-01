@@ -15,25 +15,31 @@ native OPL2 synthesizer.
 ## Original game requirement
 
 This repository does not include the copyrighted DOS executable, artwork,
-levels, music, or sound data. To run the port, place `skyroads_native.exe` in
-the folder containing a legally obtained original copy of either:
+levels, music, or sound data. Release builds embed the compressed game archives
+but deliberately omit the DOS executable. To run the port, place
+`skyroads_native.exe` beside a legally obtained original copy of either:
 
-- `SKYROADS.EXE` and the SkyRoads data files, or
-- `SKYXMAS.EXE` and the SkyRoads Xmas data files.
+- `SKYROADS.EXE`, or
+- `SKYXMAS.EXE`.
 
 The Windows host deliberately checks only the folder containing the running
 native executable. It does not search parent directories or silently use a
-different installation. Startup stops with an explanatory message when neither
-original executable or the matching `ROADS.LZS` data is present.
+different installation. No loose `.LZS`, `.DAT`, `.SND`, or `.REC` files are
+required at runtime. Startup stops with an explanatory message when neither
+original executable is present.
 
-Build the Windows port with:
+Building from source still requires legally obtained SkyRoads archives so CMake
+can generate the embedded-data translation unit. Point the cache variables at
+the two original installations when they are not in the default locations:
 
 ```powershell
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja `
+    -DSKYROADS_DATA_DIR="C:\Games\SkyRoads" `
+    -DSKYROADS_XMAS_DATA_DIR="C:\Games\SkyRoads Xmas"
 cmake --build build
 ```
 
-Then copy `build\skyroads_native.exe` beside the original DOS game files and
+Then copy `build\skyroads_native.exe` beside either original DOS executable and
 run it there.
 
 ## Current recovered source
@@ -85,21 +91,14 @@ states observed from the intro through the demo.
 
 ## SkyRoads Xmas campaign
 
-When the original SkyRoads Xmas data directory is available, the native port
-adds its 30 roads as levels 31–60. The first two selector columns contain the
-original SkyRoads campaign and the final two contain SkyRoads Xmas. Gameplay
-loads each campaign's own `ROADS.LZS` records, VGA palettes, and ten
-`WORLD*.LZS` backgrounds through the same recovered renderer.
+When the Xmas archives are supplied at build time, the native port embeds its
+30 roads as levels 31–60. The first two selector columns contain the original
+SkyRoads campaign and the final two contain SkyRoads Xmas. Gameplay loads each
+campaign's embedded `ROADS.LZS` records, VGA palettes, and ten `WORLD*.LZS`
+backgrounds through the same recovered renderer.
 Each world entry also uses the thumbnail cropped from that campaign's original
 `GOMENU.LZS` artwork; the images are reduced with nearest-neighbor sampling for
 the four-column 320x200 layout.
-
-The Windows host automatically looks for a sibling directory named `skyxmas`.
-It can also be supplied explicitly:
-
-```powershell
-.\skyroads_native.exe --xmas-data-dir "C:\Games\skyxmas"
-```
 
 Xmas completion counts are stored separately in `SKYXMAS.CFG`; the original
 30-level `SKYROADS.CFG` layout is left compatible and unchanged.
