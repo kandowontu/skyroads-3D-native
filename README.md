@@ -111,9 +111,13 @@ paging, and includes the new `SKYBRIDGE RUN` and `NEBULA SLALOM` demo roads.
 Custom files preserve the recovered seven-column, 16-bit road-cell descriptors
 used directly by the original renderer, collision code, and physics.
 
-In the editor, the arrow keys move through the top-down road grid. The numbered
-material palette or its clickable color swatches selects a road, gap, slow,
-slide, refill, boost, or terminal brush; `Space` or a click paints the grid.
+In the editor, the arrow keys move through the road grid. Press `V` (or click
+the view control) to cycle between the editable top-down grid, left isometric,
+straight road, and right isometric views. The spatial views render the recovered
+low, middle, and high shape tiers as solid blocks and show ramps as slopes.
+The numbered material palette or its clickable color swatches selects a road,
+gap, slow, slide, refill, boost, or terminal brush; `Space` paints in every view,
+and a click also paints in the top-down grid.
 `T` cycles the six recovered road-shape silhouettes, and `W` changes the
 original world theme. `G`, `F`, and `O` adjust gravity,
 fuel usage, and oxygen usage. `Insert` duplicates a row, `Delete` removes one,
@@ -130,7 +134,7 @@ game.
 
 During a level, the following native shortcuts are available:
 
-- `Ctrl+F12` toggles mid-air jumping.
+- `Ctrl+F12` toggles mid-air jumping and full left/right air steering.
 - `Ctrl+F11` immediately refills fuel and oxygen.
 - `Ctrl+F10` toggles zero gravity.
 - `Ctrl+F9` toggles a 200% recovered-physics speed ceiling.

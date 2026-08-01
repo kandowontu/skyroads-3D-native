@@ -1,5 +1,6 @@
 #include "recovered_game.hpp"
 #include "custom_levels.hpp"
+#include "editor_3d_view.hpp"
 #include "embedded_game_data.hpp"
 #include "expanded_level_menu.hpp"
 
@@ -64,22 +65,6 @@ std::string material_tool_name(unsigned slot) {
         "ERASE", "ROAD", "SLOW", "BLUE ROAD", "GOLD ROAD",
         "SLIDE", "REFILL", "BOOST", "TERMINAL", "WHITE ROAD"};
     return slot < names.size() ? names[slot] : "ROAD";
-}
-
-std::uint8_t material_color(unsigned material) {
-    switch (material & 0x0fu) {
-    case 0u: return 0u;
-    case 1u: return 2u;
-    case 2u: return 56u;
-    case 3u: return 30u;
-    case 5u: return 64u;
-    case 8u: return 190u;
-    case 9u: return 96u;
-    case 10u: return 70u;
-    case 12u: return 55u;
-    case 14u: return 143u;
-    default: return 2u;
-    }
 }
 
 std::string shape_name(unsigned shape) {
@@ -508,6 +493,7 @@ struct RecoveredGame::Impl {
     std::size_t custom_editor_column{3u};
     std::uint16_t custom_editor_brush_material{1u};
     std::uint16_t custom_editor_brush_shape{};
+    EditorViewMode custom_editor_view{EditorViewMode::Top};
     bool custom_editor_dirty{};
     std::string custom_editor_status{"READY"};
 
@@ -1262,7 +1248,7 @@ struct RecoveredGame::Impl {
         unsigned material,
         unsigned shape,
         bool selected) {
-        const auto color = material_color(material);
+        const auto color = editor_material_color(material);
         fill_native_rectangle(indexed, x, y, width, height, 0u);
         if (material != 0u && width > 2u && height > 2u) {
             fill_native_rectangle(indexed, x + 1u, y + 1u,
@@ -1345,29 +1331,44 @@ struct RecoveredGame::Impl {
         draw_native_text(indexed, 213u, 3u,
             custom_editor_dirty ? "UNSAVED" : custom_editor_status, 3u);
         draw_native_text(indexed, 4u, 13u,
-            "ARROWS MOVE  CLICK OR SPACE PAINT", 3u);
+            custom_editor_view == EditorViewMode::Top
+                ? "ARROWS MOVE CLICK SPACE PAINT V"
+                : "ARROWS MOVE SPACE PAINT  V VIEW",
+            3u);
 
         constexpr std::size_t visible_rows = 15u;
         const auto first_row = (custom_editor_row / visible_rows) * visible_rows;
-        for (std::size_t column = 0; column < kCustomRoadColumns; ++column) {
-            draw_native_text(indexed,
-                static_cast<unsigned>(32u + column * 25u), 22u,
-                fixed_number(column + 1u, 1u), 3u);
-        }
-        for (std::size_t visible = 0; visible < visible_rows; ++visible) {
-            const auto row = first_row + visible;
-            if (row >= level.row_count()) break;
-            const auto y = static_cast<unsigned>(31u + visible * 10u);
-            draw_native_text(indexed, 0u, y + 1u,
-                fixed_number(row + 1u, 3u), row == custom_editor_row ? 1u : 3u);
+        if (custom_editor_view == EditorViewMode::Top) {
             for (std::size_t column = 0; column < kCustomRoadColumns; ++column) {
-                const auto x = static_cast<unsigned>(24u + column * 25u);
-                const auto cell = level.cells[row * kCustomRoadColumns + column];
-                const auto material = static_cast<unsigned>(cell & 0x0fu);
-                const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
-                draw_editor_tile(x, y, 23u, 9u, material, shape,
-                    row == custom_editor_row && column == custom_editor_column);
+                draw_native_text(indexed,
+                    static_cast<unsigned>(32u + column * 25u), 22u,
+                    fixed_number(column + 1u, 1u), 3u);
             }
+            for (std::size_t visible = 0; visible < visible_rows; ++visible) {
+                const auto row = first_row + visible;
+                if (row >= level.row_count()) break;
+                const auto y = static_cast<unsigned>(31u + visible * 10u);
+                draw_native_text(indexed, 0u, y + 1u,
+                    fixed_number(row + 1u, 3u), row == custom_editor_row ? 1u : 3u);
+                for (std::size_t column = 0; column < kCustomRoadColumns; ++column) {
+                    const auto x = static_cast<unsigned>(24u + column * 25u);
+                    const auto cell = level.cells[row * kCustomRoadColumns + column];
+                    const auto material = static_cast<unsigned>(cell & 0x0fu);
+                    const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
+                    draw_editor_tile(x, y, 23u, 9u, material, shape,
+                        row == custom_editor_row && column == custom_editor_column);
+                }
+            }
+        }
+        else {
+            require_file_load(
+                render_editor_spatial_view(
+                    indexed, level, first_row, custom_editor_row,
+                    custom_editor_column, custom_editor_view),
+                "native 3D editor view");
+            draw_native_text(indexed, 4u, 23u,
+                "V " + std::string(editor_view_name(custom_editor_view)) +
+                "  ROW " + fixed_number(custom_editor_row + 1u, 3u), 1u);
         }
 
         draw_native_text(indexed, 207u, 22u, "MATERIAL TOOLS", 1u);
@@ -1392,7 +1393,8 @@ struct RecoveredGame::Impl {
             " F " + fixed_number(level.fuel, 3u) +
             " O " + fixed_number(level.oxygen, 3u), 3u);
         draw_native_text(indexed, 2u, 188u,
-            "PGUP PGDN ROWS  ESC LIST", 3u);
+            "V " + std::string(editor_view_name(custom_editor_view)) +
+            " PGUP PGDN ESC", 3u);
         draw_native_text(indexed, 207u, 178u, "INS DEL ROW", 3u);
         draw_native_text(indexed, 207u, 189u, "S SAVE P PLAY", 2u);
         present(custom_menu_palette());
@@ -1968,6 +1970,13 @@ struct RecoveredGame::Impl {
             gameplay.jump_start_height = gameplay.position.height;
             gameplay.prediction_already_run = 0u;
         }
+        if (!demo && air_jump_cheat && gameplay.jumping != 0u &&
+            gameplay.level_result == 0u) {
+            /* Native Ctrl-F12 extension: unlike the DOS rule, steering may be
+               reversed or stopped at any point in the jump. */
+            gameplay.lateral_velocity = static_cast<std::int16_t>(
+                controls.steering * 0x1d);
+        }
         previous_jump_control = jump_control;
         SrGameplayHooks hooks{};
         hooks.context = this;
@@ -2035,6 +2044,7 @@ struct RecoveredGame::Impl {
             !input.editor_theme_pressed && !input.editor_gravity_pressed &&
             !input.editor_fuel_pressed && !input.editor_oxygen_pressed &&
             !input.editor_insert_pressed && !input.editor_mouse_pressed &&
+            !input.editor_view_pressed &&
             input.editor_material_shortcut < 0 &&
             !input.editor_delete_pressed && !input.editor_page_up_pressed &&
             !input.editor_page_down_pressed) return;
@@ -2051,6 +2061,10 @@ struct RecoveredGame::Impl {
                     custom_editor_brush_material);
             custom_editor_dirty = true;
         };
+        const auto cycle_view = [&] {
+            custom_editor_view = next_editor_view(custom_editor_view);
+            custom_editor_status = std::string(editor_view_name(custom_editor_view));
+        };
         if (input.escape_pressed) {
             if (custom_editor_dirty) save_custom_editor();
             custom_browser_selection = custom_editor_index + 1u;
@@ -2066,6 +2080,9 @@ struct RecoveredGame::Impl {
             if (!custom_editor_dirty) start_custom_level(custom_editor_index);
             return;
         }
+        else if (input.editor_view_pressed) {
+            cycle_view();
+        }
         else if (input.editor_material_shortcut >= 0 &&
             static_cast<std::size_t>(input.editor_material_shortcut) <
                 kEditorMaterials.size()) {
@@ -2080,7 +2097,12 @@ struct RecoveredGame::Impl {
             constexpr std::size_t visible_rows = 15u;
             const auto mouse_x = static_cast<unsigned>(input.mouse_x);
             const auto mouse_y = static_cast<unsigned>(input.mouse_y);
-            if (mouse_x >= grid_x && mouse_x < grid_x + 7u * tile_stride_x &&
+            if (mouse_x < 203u &&
+                ((mouse_y >= 22u && mouse_y < 31u) || mouse_y >= 184u)) {
+                cycle_view();
+            }
+            else if (custom_editor_view == EditorViewMode::Top &&
+                mouse_x >= grid_x && mouse_x < grid_x + 7u * tile_stride_x &&
                 mouse_y >= grid_y && mouse_y < grid_y + visible_rows * tile_stride_y) {
                 const auto relative_x = mouse_x - grid_x;
                 const auto relative_y = mouse_y - grid_y;
@@ -2188,7 +2210,8 @@ struct RecoveredGame::Impl {
         if (active_screen != NativeScreen::Playing) return;
         if (input.cheat_air_jump_pressed) {
             air_jump_cheat = !air_jump_cheat;
-            show_cheat_status(air_jump_cheat ? "AIR JUMP ON" : "AIR JUMP OFF");
+            show_cheat_status(
+                air_jump_cheat ? "AIR JUMP STEER ON" : "AIR JUMP STEER OFF");
         }
         if (input.cheat_refill_pressed) {
             gameplay.fuel = 30000u;
@@ -2429,6 +2452,10 @@ std::uint16_t RecoveredGame::oxygen() const {
 
 std::int16_t RecoveredGame::vertical_velocity() const {
     return impl_->gameplay.vertical_velocity;
+}
+
+std::int16_t RecoveredGame::lateral_velocity() const {
+    return impl_->gameplay.lateral_velocity;
 }
 
 std::int16_t RecoveredGame::gravity_step() const {

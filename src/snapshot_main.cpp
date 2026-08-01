@@ -12,8 +12,10 @@ int main(int argc, char** argv) {
                      : std::filesystem::current_path());
         const auto output = argc > 2 ? std::filesystem::path(argv[2]) : std::filesystem::path("snapshot.ppm");
         const auto view = argc > 3 ? std::string(argv[3]) : std::string("game");
+        const bool editor_view = view == "editor" || view == "editor-iso-left" ||
+            view == "editor-straight" || view == "editor-iso-right";
         const bool xmas_view = view == "xmas-levels" || view == "xmas-game" ||
-            view == "creations" || view == "editor" || view == "custom-game";
+            view == "creations" || editor_view || view == "custom-game";
         skyroads::RecoveredGame game(root);
         skyroads::NativeInput input;
         if (view != "intro" && view != "demo") {
@@ -29,7 +31,7 @@ int main(int argc, char** argv) {
                 input = {};
             }
         }
-        else if (view == "creations" || view == "editor" ||
+        else if (view == "creations" || editor_view ||
             view == "custom-game") {
             for (unsigned item = 0; item < 3u; ++item) {
                 input.down = true;
@@ -43,7 +45,7 @@ int main(int argc, char** argv) {
                 input.down = true;
                 game.timer_tick(input); // first saved creation
                 input = {};
-                if (view == "editor") input.enter_pressed = true;
+                if (editor_view) input.enter_pressed = true;
                 else input.editor_play_pressed = true;
                 game.timer_tick(input);
                 input = {};
@@ -92,6 +94,20 @@ int main(int argc, char** argv) {
             input.right = true;
             game.timer_tick(input);
             input = {};
+        }
+        if (editor_view && view != "editor") {
+            for (unsigned page = 0; page < 2u; ++page) {
+                input.editor_page_down_pressed = true;
+                game.timer_tick(input);
+                input = {};
+            }
+            const unsigned views = view == "editor-iso-left" ? 1u :
+                view == "editor-straight" ? 2u : 3u;
+            for (unsigned index = 0; index < views; ++index) {
+                input.editor_view_pressed = true;
+                game.timer_tick(input);
+                input = {};
+            }
         }
         if (view == "game" || view == "xmas-game") {
             input.enter_pressed = true;

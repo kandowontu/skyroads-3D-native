@@ -94,6 +94,7 @@ add_subdirectory(reverse/reconstructed)
 add_library(skyroads_port_core
     "${SKYROADS_EMBEDDED_DATA_CPP}"
     src/custom_levels.cpp
+    src/editor_3d_view.cpp
     src/expanded_level_menu.cpp
     src/hd_renderer.cpp
     src/recovered_game.cpp)
@@ -137,6 +138,10 @@ add_test(NAME skyroads_expanded_level_menu COMMAND skyroads_expanded_level_menu_
 add_executable(skyroads_custom_levels_tests tests/custom_levels_tests.cpp)
 target_link_libraries(skyroads_custom_levels_tests PRIVATE skyroads_port_core)
 add_test(NAME skyroads_custom_levels COMMAND skyroads_custom_levels_tests)
+
+add_executable(skyroads_editor_3d_view_tests tests/editor_3d_view_tests.cpp)
+target_link_libraries(skyroads_editor_3d_view_tests PRIVATE skyroads_port_core)
+add_test(NAME skyroads_editor_3d_view COMMAND skyroads_editor_3d_view_tests)
 
 add_executable(skyroads_hd_renderer_tests tests/hd_renderer_tests.cpp)
 target_link_libraries(skyroads_hd_renderer_tests PRIVATE skyroads_port_core)

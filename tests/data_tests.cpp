@@ -7,6 +7,7 @@ extern "C" {
 #include "graphics_archive.h"
 }
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -155,6 +156,21 @@ int main(int argc, char** argv) {
             input = {};
             require(editor_game.screen() == skyroads::NativeScreen::CustomLevelEditor,
                 "A listed creation did not open in the built-in editor");
+            const auto top_editor_hash = hash_bytes(editor_game.indexed_pixels());
+            std::array<std::uint64_t, 3> spatial_hashes{};
+            for (auto& spatial_hash : spatial_hashes) {
+                input.editor_view_pressed = true;
+                editor_game.timer_tick(input);
+                input = {};
+                spatial_hash = hash_bytes(editor_game.indexed_pixels());
+            }
+            require(spatial_hashes[0] != top_editor_hash &&
+                    spatial_hashes[1] != top_editor_hash &&
+                    spatial_hashes[2] != top_editor_hash &&
+                    spatial_hashes[0] != spatial_hashes[1] &&
+                    spatial_hashes[0] != spatial_hashes[2] &&
+                    spatial_hashes[1] != spatial_hashes[2],
+                "Editor did not expose distinct left, straight, and right 3D views");
             input.escape_pressed = true;
             editor_game.timer_tick(input);
             input = {};
@@ -346,6 +362,16 @@ int main(int argc, char** argv) {
         for (unsigned irq = 0; irq < 6u; ++irq) game.timer_tick(input);
         require(game.vertical_velocity() > velocity_before_air_jump,
             "Enabled Ctrl-F12 mode did not restart a jump while airborne");
+        input = {};
+        input.left = true;
+        for (unsigned irq = 0; irq < 6u; ++irq) game.timer_tick(input);
+        require(game.lateral_velocity() < 0,
+            "Ctrl-F12 air steering did not turn left while airborne");
+        input = {};
+        input.right = true;
+        for (unsigned irq = 0; irq < 6u; ++irq) game.timer_tick(input);
+        require(game.lateral_velocity() > 0,
+            "Ctrl-F12 air steering did not reverse direction while airborne");
 
         std::cout << "Native frontend is running the executable-authoritative core\n";
         return 0;

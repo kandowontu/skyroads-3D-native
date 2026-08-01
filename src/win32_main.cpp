@@ -143,6 +143,7 @@ NativeInput collect_input() {
     input.editor_page_up_pressed = g_pressed[VK_PRIOR];
     input.editor_page_down_pressed = g_pressed[VK_NEXT];
     input.editor_mouse_pressed = g_pressed[VK_LBUTTON];
+    input.editor_view_pressed = g_pressed['V'];
     for (std::int8_t slot = 0; slot < 10; ++slot) {
         const auto key = static_cast<unsigned>('0' + slot);
         if (g_pressed[key]) input.editor_material_shortcut = slot;

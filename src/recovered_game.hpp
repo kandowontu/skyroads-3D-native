@@ -45,6 +45,7 @@ struct NativeInput {
     bool editor_page_up_pressed{};
     bool editor_page_down_pressed{};
     bool editor_mouse_pressed{};
+    bool editor_view_pressed{};
     std::int8_t editor_material_shortcut{-1};
     bool cheat_air_jump_pressed{};
     bool cheat_refill_pressed{};
@@ -107,6 +108,7 @@ public:
     [[nodiscard]] std::uint16_t fuel() const;
     [[nodiscard]] std::uint16_t oxygen() const;
     [[nodiscard]] std::int16_t vertical_velocity() const;
+    [[nodiscard]] std::int16_t lateral_velocity() const;
     [[nodiscard]] std::int16_t gravity_step() const;
     [[nodiscard]] std::int32_t forward_speed() const;
     [[nodiscard]] std::int32_t forward_speed_limit() const;
