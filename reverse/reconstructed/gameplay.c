@@ -113,6 +113,23 @@ void sr_gameplay_init(SrGameplayState *state, const SrGameplayConfig *config) {
     state->previous_target_height = 0x2800u;
 }
 
+void sr_gameplay_begin_finish(
+    SrGameplayState *state,
+    uint16_t *tick_count) {
+    if (state == 0 || tick_count == 0) return;
+    state->position.height = 0;
+    *tick_count = 0;
+}
+
+int sr_gameplay_finish_tick(
+    SrGameplayState *state,
+    uint16_t *tick_count) {
+    if (state == 0 || tick_count == 0) return 1;
+    ++*tick_count;
+    state->position.distance += (uint32_t)state->forward_speed;
+    return *tick_count >= SR_GAMEPLAY_FINISH_TICKS;
+}
+
 int sr_gameplay_result_ready(const SrGameplayState *state) {
     int result_can_return =
         state->result_ticks == 0 || state->result_ticks > 0x2au;

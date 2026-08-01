@@ -176,6 +176,62 @@ void draw_picture(
     }
 }
 
+void draw_main_menu_editor_label(
+    std::vector<std::uint8_t>& destination,
+    bool selected) {
+    struct MenuGlyph {
+        unsigned width;
+        std::array<std::uint16_t, 16> rows;
+    };
+    static constexpr std::array<MenuGlyph, 6> glyphs{{
+        {9u, {0x1ff,0x1ff,0x1ff,0x1c0,0x1c0,0x1c0,0x1fc,0x1fc,
+              0x1fc,0x1c0,0x1c0,0x1c0,0x1ff,0x1ff,0x1ff,0x1ff}},
+        {9u, {0x007,0x007,0x007,0x007,0x07f,0x0ff,0x1c7,0x1c7,
+              0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x0ff,0x07f}},
+        {3u, {0x007,0x007,0x007,0x000,0x000,0x007,0x007,0x007,
+              0x007,0x007,0x007,0x007,0x007,0x007,0x007,0x007}},
+        {7u, {0x01c,0x01c,0x01c,0x01c,0x07f,0x07f,0x07f,0x01c,
+              0x01c,0x01c,0x01c,0x01c,0x01c,0x01f,0x00e,0x00c}},
+        {9u, {0x000,0x000,0x000,0x07c,0x0fe,0x1c7,0x1c7,0x1c7,
+              0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x0fe,0x07c}},
+        {8u, {0x000,0x000,0x000,0x0ee,0x0ff,0x0ff,0x0f7,0x0e7,
+              0x0e7,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0}},
+    }};
+    constexpr int origin_x = 132;
+    constexpr int origin_y = 183;
+
+    const auto draw_pass = [&](std::uint8_t color, bool outline) {
+        int glyph_x = origin_x;
+        for (const auto& glyph : glyphs) {
+            for (unsigned row = 0; row < glyph.rows.size(); ++row) {
+                for (unsigned column = 0; column < glyph.width; ++column) {
+                    if ((glyph.rows[row] &
+                            (1u << (glyph.width - 1u - column))) == 0u) continue;
+                    const int radius = outline ? 1 : 0;
+                    for (int offset_y = -radius; offset_y <= radius; ++offset_y) {
+                        for (int offset_x = -radius; offset_x <= radius; ++offset_x) {
+                            const int x = glyph_x + static_cast<int>(column) + offset_x;
+                            const int y = origin_y + static_cast<int>(row) + offset_y;
+                            if (x >= 0 && x < kScreenWidth &&
+                                y >= 0 && y < kScreenHeight) {
+                                destination[static_cast<std::size_t>(y) *
+                                    kScreenWidth + static_cast<unsigned>(x)] = color;
+                            }
+                        }
+                    }
+                }
+            }
+            glyph_x += static_cast<int>(glyph.width) + 2;
+        }
+    };
+
+    /* MAINMENU.LZS uses heavy white bodies with a one-pixel yellow halo only
+       around the active word.  These title-case glyphs follow the original
+       16-pixel menu proportions instead of borrowing the serifed BIOS font. */
+    if (selected) draw_pass(0xbfu, true);
+    draw_pass(0xc0u, false);
+}
+
 struct PictureOwner {
     SrPicture value{};
     PictureOwner() = default;
@@ -473,6 +529,7 @@ struct RecoveredGame::Impl {
     std::size_t road_index{};
     std::size_t active_road_record{1u};
     std::uint16_t tick_count{};
+    bool finish_coast_active{};
     std::uint64_t irq_count{};
     std::uint8_t irq_phase{};
     std::uint16_t last_random_track{0xffffu};
@@ -666,10 +723,10 @@ struct RecoveredGame::Impl {
         intro.color_map(main_assets.palette, 0x32);
         auto logo = intro.picture(0x32);
         draw_picture(main_assets.background, logo.value);
-        intro.color_map(main_assets.palette, 0xa0);
-        intro.color_map(main_assets.palette, 0xa0);
-        auto foreground = intro.picture(0xa0);
-        draw_picture(main_assets.background, foreground.value);
+        /* The third INTRO.LZS picture is the already-highlighted Start menu.
+           It belongs to the intro's final frame, not the persistent menu
+           backdrop.  Each MAINMENU.LZS state supplies its own complete label
+           body and active halo below. */
         copy_palette(main_assets.palette, 0xbe,
             main_assets.items.palette, main_assets.items.palette_count);
     }
@@ -1145,21 +1202,7 @@ struct RecoveredGame::Impl {
                 }
             }
         }
-        /* Match the BIOS-derived, outlined proportions of the three original
-           menu labels while leaving the title-road artwork visible beneath. */
-        for (const auto& [x, y] : std::array<std::pair<std::uint16_t, std::uint16_t>, 4>{
-                 std::pair<std::uint16_t, std::uint16_t>{136u, 183u},
-                 {138u, 183u}, {137u, 182u}, {137u, 184u}}) {
-            require_file_load(
-                sr_draw_bios_text_scaled_vga(
-                    indexed.data(), x, y, "Editor", 0u, 1u, 2u) != 0,
-                "native Editor menu outline");
-        }
-        require_file_load(
-            sr_draw_bios_text_scaled_vga(
-                indexed.data(), 137u, 183u, "Editor",
-                main_selection == 3u ? 0xbfu : 0xc0u, 1u, 2u) != 0,
-            "native Editor menu label");
+        draw_main_menu_editor_label(indexed, main_selection == 3u);
         present(main_assets.palette);
     }
 
@@ -1615,6 +1658,7 @@ struct RecoveredGame::Impl {
         sr_run_level_init(&run_level_state, final_unfinished_level);
         active_screen = NativeScreen::LevelTransition;
         tick_count = 0;
+        finish_coast_active = false;
         previous_jump_control = false;
         live_input = {};
         live_input.mode = static_cast<SrInputMode>(selected_input_mode);
@@ -1794,6 +1838,7 @@ struct RecoveredGame::Impl {
     }
 
     void begin_level_exit(std::uint16_t result) {
+        finish_coast_active = false;
         const auto step = sr_run_level_finish_gameplay(&run_level_state, result);
         active_screen = NativeScreen::LevelResult;
         if ((step.events & SR_RUN_LEVEL_EVENT_DRAW_COMPLETION) != 0) {
@@ -1860,6 +1905,21 @@ struct RecoveredGame::Impl {
     void gameplay_tick(const NativeInput& input) {
         const bool demo = active_screen == NativeScreen::Demo;
         if (active_screen != NativeScreen::Playing && !demo) return;
+        if (finish_coast_active) {
+            const bool coast_finished =
+                sr_gameplay_finish_tick(&gameplay, &tick_count) != 0;
+            sr_sound_effect_set_tick(&sound_state, tick_count);
+            if (coast_finished) {
+                begin_level_exit(SR_LEVEL_COMPLETE);
+                return;
+            }
+            if (input.escape_pressed) {
+                begin_level_exit(SR_LEVEL_ABORTED);
+                return;
+            }
+            render_gameplay();
+            return;
+        }
         // The DOS loop presents the current state before polling input and
         // advancing physics.  In particular, it does not draw the terminal
         // state after gameplay reports a result.
@@ -1917,7 +1977,11 @@ struct RecoveredGame::Impl {
         const auto result = sr_gameplay_tick(
             road.cells, road.row_count, &gameplay_config, &controls, &hooks, &gameplay);
         if (result == SR_GAMEPLAY_TICK_FINISHED) {
-            begin_level_exit(SR_LEVEL_COMPLETE);
+            finish_coast_active = true;
+            sr_gameplay_begin_finish(&gameplay, &tick_count);
+            /* 1000:0E58 draws the first height-zero tube frame immediately,
+               then waits for the first of its 72 synchronized coast ticks. */
+            render_gameplay();
             return;
         }
         else if (sr_gameplay_result_ready(&gameplay)) {

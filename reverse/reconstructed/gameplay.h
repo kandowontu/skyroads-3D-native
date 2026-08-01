@@ -71,13 +71,20 @@ typedef enum SrGameplayTickResult {
     SR_GAMEPLAY_TICK_FINISHED = 1
 } SrGameplayTickResult;
 
+enum {
+    /* skyroads.exe 1000:0E58 keeps rendering inside the finish tube until the
+       timer-owned gameplay counter reaches 0x48. */
+    SR_GAMEPLAY_FINISH_TICKS = 0x48
+};
+
 /* Exact initialization sequence at skyroads.exe 1000:1F47-2004. */
 void sr_gameplay_init(SrGameplayState *state, const SrGameplayConfig *config);
 
 /*
  * One iteration of the fixed-timer inner loop at 1000:22A3-2ADD.
- * Rendering, device sampling, pause handling, and the finish animation remain
- * in the outer platform loop; all gameplay state transitions are performed here.
+ * Rendering, device sampling, pause handling, and finish-tube presentation
+ * remain in the outer platform loop; all gameplay state transitions are
+ * performed here.
  */
 SrGameplayTickResult sr_gameplay_tick(
     const uint16_t *cells,
@@ -86,6 +93,16 @@ SrGameplayTickResult sr_gameplay_tick(
     const SrGameplayControls *controls,
     const SrGameplayHooks *hooks,
     SrGameplayState *state);
+
+/* Exact visible finish-tube coast at skyroads.exe 1000:0E58.  The caller
+   renders once immediately after begin, then calls finish_tick after each
+   synchronized 36 Hz timer step. */
+void sr_gameplay_begin_finish(
+    SrGameplayState *state,
+    uint16_t *tick_count);
+int sr_gameplay_finish_tick(
+    SrGameplayState *state,
+    uint16_t *tick_count);
 
 /* Exact delayed-result predicate at skyroads.exe 1000:2200-2249. */
 int sr_gameplay_result_ready(const SrGameplayState *state);

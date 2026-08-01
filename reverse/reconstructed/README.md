@@ -36,9 +36,9 @@ Currently reviewed:
 - `motion.c`: the complete landing predictor and its ordered lateral/speed
   collision-recovery search (`1000:1C20`, `1000:1D4D`).
 - `gameplay.c`: the exact initialization, fixed-timer inner tick, landing and
-  bounce transitions, resource/result handling, and delayed-result predicate
-  from the gameplay loop (`1000:1F2C`). Platform input/render/pause handling is
-  kept outside this deterministic core.
+  bounce transitions, resource/result handling, delayed-result predicate, and
+  72-tick finish-tube coast from the gameplay loop (`1000:0E58`, `1000:1F2C`).
+  Platform input/render/pause handling is kept outside this deterministic core.
 - `render_params.c`: the exact gameplay-frame sprite, attitude, lane, road
   phase, surface-clearance, and car-frame selectors (`1000:0AFA`–`1000:0BE3`)
   that feed the VGA/EGA road renderer.

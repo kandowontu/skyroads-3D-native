@@ -134,12 +134,36 @@ static void test_native_overdrive_limit(void) {
     assert(state.forward_speed == 0x5554);
 }
 
+static void test_finish_tube_coast(void) {
+    SrGameplayConfig config = base_config();
+    SrGameplayState state;
+    uint16_t tick_count = 0xffffu;
+    uint32_t starting_distance;
+
+    sr_gameplay_init(&state, &config);
+    state.forward_speed = 0x1234;
+    starting_distance = state.position.distance;
+    sr_gameplay_begin_finish(&state, &tick_count);
+    assert(state.position.height == 0);
+    assert(tick_count == 0);
+
+    for (unsigned tick = 1; tick < SR_GAMEPLAY_FINISH_TICKS; ++tick) {
+        assert(!sr_gameplay_finish_tick(&state, &tick_count));
+        assert(tick_count == tick);
+    }
+    assert(sr_gameplay_finish_tick(&state, &tick_count));
+    assert(tick_count == SR_GAMEPLAY_FINISH_TICKS);
+    assert(state.position.distance == starting_distance +
+        SR_GAMEPLAY_FINISH_TICKS * 0x1234u);
+}
+
 int main(void) {
     test_initialization();
     test_ground_tick_and_jump();
     test_demo_timeout_and_delay();
     test_resource_result_priority();
     test_native_overdrive_limit();
+    test_finish_tube_coast();
     puts("gameplay tests passed");
     return 0;
 }

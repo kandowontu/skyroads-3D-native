@@ -1,7 +1,9 @@
 #include "recovered_game.hpp"
+#include "custom_levels.hpp"
 #include "expanded_level_menu.hpp"
 
 extern "C" {
+#include "gameplay.h"
 #include "graphics_archive.h"
 }
 
@@ -122,6 +124,23 @@ int main(int argc, char** argv) {
                 editor_game.timer_tick(input);
                 input = {};
             }
+            std::size_t editor_white_pixels = 0u;
+            std::size_t editor_halo_pixels = 0u;
+            for (unsigned y = 182u; y < 200u; ++y) {
+                for (unsigned x = 134u; x < 187u; ++x) {
+                    const auto pixel = editor_game.indexed_pixels()[y * 320u + x];
+                    if (pixel == 0xc0u) ++editor_white_pixels;
+                    if (pixel == 0xbfu) ++editor_halo_pixels;
+                }
+            }
+            require(editor_white_pixels > 50u && editor_halo_pixels > 50u,
+                "Editor did not use the original menu's white-body/yellow-halo style");
+            for (unsigned y = 128u; y < 147u; ++y) {
+                for (unsigned x = 127u; x < 195u; ++x) {
+                    require(editor_game.indexed_pixels()[y * 320u + x] != 0xa1u,
+                        "Intro's default Start highlight leaked into the Editor state");
+                }
+            }
             input.enter_pressed = true;
             editor_game.timer_tick(input);
             input = {};
@@ -144,6 +163,91 @@ int main(int argc, char** argv) {
             input = {};
             require(editor_game.screen() == skyroads::NativeScreen::LevelTransition,
                 "A custom creation did not enter the recovered play-test flow");
+        }
+
+        {
+            const auto finish_root = root / "build" / "test-finish-runtime";
+            std::error_code error;
+            std::filesystem::remove_all(finish_root, error);
+            std::filesystem::create_directories(
+                finish_root / "custom_levels", error);
+            require(!error, "Could not create the isolated finish-coast test folder");
+            std::filesystem::copy_file(
+                root / "skyroads.exe", finish_root / "skyroads.exe",
+                std::filesystem::copy_options::overwrite_existing, error);
+            require(!error, "Could not stage the original executable for finish testing");
+
+            skyroads::CustomLevel finish_level;
+            finish_level.path =
+                finish_root / "custom_levels" / "000_finish_tube.srlevel";
+            finish_level.name = "FINISH TUBE TEST";
+            finish_level.gravity = 8u;
+            finish_level.cells.assign(24u * skyroads::kCustomRoadColumns, 0x0001u);
+            for (std::size_t row = 22u; row < 24u; ++row) {
+                for (std::size_t column = 0u;
+                     column < skyroads::kCustomRoadColumns; ++column) {
+                    finish_level.cells[row * skyroads::kCustomRoadColumns + column] =
+                        0x010eu;
+                }
+            }
+            require(skyroads::save_custom_level(finish_level),
+                "Could not save the isolated finish-coast test road");
+
+            skyroads::RecoveredGame finish_game(finish_root);
+            skyroads::NativeInput finish_input;
+            finish_input.enter_pressed = true;
+            finish_game.timer_tick(finish_input);
+            finish_input = {};
+            for (unsigned item = 0; item < 3u; ++item) {
+                finish_input.down = true;
+                finish_game.timer_tick(finish_input);
+                finish_input = {};
+            }
+            finish_input.enter_pressed = true;
+            finish_game.timer_tick(finish_input);
+            finish_input = {};
+            finish_input.down = true;
+            finish_game.timer_tick(finish_input);
+            finish_input = {};
+            finish_input.editor_play_pressed = true;
+            finish_game.timer_tick(finish_input);
+            finish_input = {};
+            for (unsigned irq = 0;
+                 irq < 1000u &&
+                 finish_game.screen() == skyroads::NativeScreen::LevelTransition;
+                 ++irq) {
+                finish_game.timer_tick(finish_input);
+            }
+            require(finish_game.screen() == skyroads::NativeScreen::Playing,
+                "Finish-coast test road did not start");
+
+            bool saw_finish_counter_reset = false;
+            auto previous_ticks = finish_game.gameplay_ticks();
+            finish_input.up = true;
+            for (unsigned irq = 0;
+                 irq < 20000u &&
+                 finish_game.screen() == skyroads::NativeScreen::Playing;
+                 ++irq) {
+                finish_game.timer_tick(finish_input);
+                const auto current_ticks = finish_game.gameplay_ticks();
+                if (!saw_finish_counter_reset && current_ticks < previous_ticks) {
+                    saw_finish_counter_reset = true;
+                    require(current_ticks == 0u,
+                        "Finish-tube routine did not reset the original tick counter");
+                }
+                if (saw_finish_counter_reset &&
+                    finish_game.screen() == skyroads::NativeScreen::Playing) {
+                    require(current_ticks < SR_GAMEPLAY_FINISH_TICKS,
+                        "Finish-tube coast remained active past 72 ticks");
+                }
+                previous_ticks = current_ticks;
+            }
+            require(saw_finish_counter_reset,
+                "Test road did not enter the recovered finish-tube routine");
+            require(finish_game.screen() == skyroads::NativeScreen::LevelResult &&
+                    finish_game.gameplay_ticks() == SR_GAMEPLAY_FINISH_TICKS,
+                "Road completion did not wait for the exact 72-tick tube coast");
+            std::filesystem::remove_all(finish_root, error);
         }
 
         input.enter_pressed = true;
