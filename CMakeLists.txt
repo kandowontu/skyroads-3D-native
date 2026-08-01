@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.23)
 
 project(skyroads_native VERSION 1.0.0 LANGUAGES C CXX)
 
+if(WIN32)
+    enable_language(RC)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -112,7 +116,26 @@ add_library(skyroads_opl_synth src/opl_synth.cpp)
 target_include_directories(skyroads_opl_synth PUBLIC src)
 target_link_libraries(skyroads_opl_synth PUBLIC opal skyroads_port_core)
 
+if(MINGW)
+    # MinGW windres loses quoting on inherited -I paths containing spaces.
+    # Compile this self-contained resource without target include directories.
+    set(SKYROADS_NATIVE_RESOURCE
+        "${CMAKE_CURRENT_BINARY_DIR}/skyroads_native_resource.obj")
+    add_custom_command(
+        OUTPUT "${SKYROADS_NATIVE_RESOURCE}"
+        COMMAND "${CMAKE_RC_COMPILER}" --use-temp-file -O coff
+            -i "${CMAKE_CURRENT_SOURCE_DIR}/src/skyroads_native.rc"
+            -o "${SKYROADS_NATIVE_RESOURCE}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/skyroads_native.rc"
+        VERBATIM)
+    set_source_files_properties("${SKYROADS_NATIVE_RESOURCE}" PROPERTIES
+        EXTERNAL_OBJECT TRUE
+        GENERATED TRUE)
+else()
+    set(SKYROADS_NATIVE_RESOURCE src/skyroads_native.rc)
+endif()
 add_executable(skyroads_native WIN32
+    "${SKYROADS_NATIVE_RESOURCE}"
     src/win32_main.cpp
     src/win32_opl_audio.cpp)
 target_link_libraries(skyroads_native PRIVATE

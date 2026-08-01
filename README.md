@@ -1,5 +1,9 @@
 # SkyRoads executable reconstruction
 
+> This is an unofficial native Windows reconstruction. SkyRoads and its
+> original assets remain the work of BlueMoon Software/Bluemoon Interactive.
+> See [the original credits](CREDITS.md).
+
 The active porting path is a reviewed C reconstruction of `skyroads.exe`, not a
 gameplay approximation. The DOS executable and shipped data files are the
 authority. Generated decompiler output is evidence; only manually checked code
@@ -12,6 +16,14 @@ old approximate gameplay and perspective renderer are no longer on the active
 path. The host also streams the recovered OPL register schedule through a
 native OPL2 synthesizer.
 
+## SkyRoads Native 1.0
+
+The first stable release combines the executable-authoritative DOS simulation
+with optional native enhancements: both 30-road campaigns in one selector,
+smooth high-definition presentation, recovered OPL2 audio, a visual road
+editor, spatial editor views, and optional in-level shortcuts. See the complete
+[1.0 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
+
 ## Original game requirement
 
 This repository does not include the copyrighted DOS executable, artwork,
@@ -21,6 +33,16 @@ but deliberately omit the DOS executable. To run the port, place
 
 - `SKYROADS.EXE`, or
 - `SKYXMAS.EXE`.
+
+BlueMoon still hosts the original releases on its official history page:
+
+- [Official SkyRoads history and download page](http://www.bluemoon.ee/history/skyroads/)
+- [Download the full original SkyRoads](http://www.bluemoon.ee/history/skyroads/skyroads.zip)
+- [Download the full SkyRoads Xmas Special](http://www.bluemoon.ee/history/skyroads/skyxmas.zip)
+
+The site is a preserved period website served over HTTP. Download and extract
+either official archive, then put `skyroads_native.exe` beside its DOS
+executable. Do not rename the original executable.
 
 The Windows host deliberately checks only the folder containing the running
 native executable. It does not search parent directories or silently use a
@@ -126,6 +148,9 @@ original world theme. `G`, `F`, and `O` adjust gravity,
 fuel usage, and oxygen usage. `Insert` duplicates a row, `Delete` removes one,
 `S` saves, and `P` saves and immediately play-tests the creation through the
 recovered game loop. `Escape` returns to the creation browser.
+
+The full browser, painting, spatial-view, metadata, file-location, restoration,
+and play-testing instructions are in [EDITOR_README.md](EDITOR_README.md).
 
 ## Native display and shortcut extensions
 
