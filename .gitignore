@@ -18,6 +18,9 @@ out/
 *.cfg
 readme.txt
 
+# Runtime-generated editor copies of the decoded original campaign roads
+custom_levels/ORIGINAL LEVELS/
+
 # Local IDE/build variants
 Build*/
 .vs/

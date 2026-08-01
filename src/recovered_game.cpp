@@ -426,6 +426,7 @@ struct RecoveredGame::Impl {
 
     std::filesystem::path root;
     std::filesystem::path custom_level_directory;
+    std::filesystem::path original_level_directory;
     std::vector<std::uint8_t> indexed;
     std::vector<std::uint32_t> rgba;
     std::uint64_t presentation_revision{};
@@ -487,6 +488,7 @@ struct RecoveredGame::Impl {
     NativeScreen active_screen{NativeScreen::Intro};
 
     std::vector<CustomLevel> custom_levels;
+    bool custom_browser_original_levels{};
     std::size_t custom_browser_selection{};
     std::size_t custom_editor_index{};
     std::size_t custom_editor_row{};
@@ -632,7 +634,9 @@ struct RecoveredGame::Impl {
         load_xmas_levels();
 
         custom_level_directory = root / "custom_levels";
+        original_level_directory = custom_level_directory / "ORIGINAL LEVELS";
         ensure_demo_custom_levels(custom_level_directory);
+        ensure_original_custom_levels();
         custom_levels = load_custom_level_catalog(custom_level_directory);
 
         load_display("oxy_disp.dat", 10, oxygen_display);
@@ -644,6 +648,45 @@ struct RecoveredGame::Impl {
         load_help_pages();
         load_intro_assets();
         demo_record = read_embedded_file(EmbeddedCampaign::SkyRoads, "demo.rec");
+    }
+
+    void ensure_original_custom_levels() {
+        std::error_code filesystem_error;
+        std::filesystem::create_directories(
+            original_level_directory, filesystem_error);
+        if (filesystem_error) return;
+
+        const auto level_count = std::min<std::size_t>(
+            kOriginalLevelCount,
+            roads.road_count > 0u ? roads.road_count - 1u : 0u);
+        for (std::size_t level_index = 0u;
+             level_index < level_count; ++level_index) {
+            const auto world = level_index / 3u + 1u;
+            const auto road_number = level_index % 3u + 1u;
+            const auto name = std::to_string(world) + "-" +
+                std::to_string(road_number);
+            const auto path = original_level_directory / (name + ".srlevel");
+
+            CustomLevel installed;
+            filesystem_error.clear();
+            if (std::filesystem::exists(path, filesystem_error) &&
+                load_custom_level(path, installed) && installed.name == name) {
+                continue;
+            }
+
+            const auto& source = roads.roads[level_index + 1u];
+            CustomLevel level;
+            level.path = path;
+            level.name = name;
+            level.theme = static_cast<std::uint16_t>(level_index / 3u);
+            level.gravity = source.gravity;
+            level.fuel = source.fuel;
+            level.oxygen = source.oxygen;
+            level.cells.assign(
+                source.cells,
+                source.cells + source.row_count * kCustomRoadColumns);
+            (void)save_custom_level(level);
+        }
     }
 
     void load_xmas_levels() {
@@ -1196,14 +1239,34 @@ struct RecoveredGame::Impl {
         return xmas_available ? level_assets.expanded_palette : level_assets.palette;
     }
 
+    std::size_t custom_browser_level_offset() const {
+        return custom_browser_original_levels ? 1u : 2u;
+    }
+
+    std::size_t custom_browser_total_items() const {
+        return custom_levels.size() + custom_browser_level_offset();
+    }
+
+    bool custom_browser_selection_is_level() const {
+        const auto offset = custom_browser_level_offset();
+        return custom_browser_selection >= offset &&
+            custom_browser_selection - offset < custom_levels.size();
+    }
+
+    std::size_t custom_browser_level_index() const {
+        return custom_browser_selection - custom_browser_level_offset();
+    }
+
     void render_custom_browser() {
         draw_original_menu_backdrop(indexed, level_assets.background.data());
-        draw_native_text(indexed, 8u, 7u, "CUSTOM ROADS", 1u);
+        draw_native_text(indexed, 8u, 7u,
+            custom_browser_original_levels ? "ORIGINAL LEVELS" : "CUSTOM ROADS", 1u);
         draw_native_text(indexed, 211u, 7u,
-            fixed_number(custom_levels.size(), 3u) + " CREATIONS", 3u);
+            fixed_number(custom_levels.size(), 3u) +
+                (custom_browser_original_levels ? " ROADS" : " CREATIONS"), 3u);
 
         constexpr std::size_t visible_items = 13u;
-        const auto total_items = custom_levels.size() + 1u;
+        const auto total_items = custom_browser_total_items();
         const auto first_item = (custom_browser_selection / visible_items) * visible_items;
         for (std::size_t slot = 0; slot < visible_items; ++slot) {
             const auto item = first_item + slot;
@@ -1213,14 +1276,19 @@ struct RecoveredGame::Impl {
             if (selected) {
                 draw_native_rectangle(indexed, 8u, y - 1u, 190u, 9u, 1u);
             }
-            const auto label = item == 0u
-                ? std::string("CREATE NEW") : custom_levels[item - 1u].name;
+            std::string label;
+            if (custom_browser_original_levels) {
+                label = item == 0u ? "BACK TO CREATIONS" :
+                    custom_levels[item - 1u].name;
+            }
+            else if (item == 0u) label = "CREATE NEW";
+            else if (item == 1u) label = "ORIGINAL LEVELS";
+            else label = custom_levels[item - 2u].name;
             draw_native_text(indexed, 12u, y, label, selected ? 1u : 2u);
         }
 
-        if (custom_browser_selection != 0u &&
-            custom_browser_selection <= custom_levels.size()) {
-            const auto& level = custom_levels[custom_browser_selection - 1u];
+        if (custom_browser_selection_is_level()) {
+            const auto& level = custom_levels[custom_browser_level_index()];
             draw_native_text(indexed, 211u, 31u,
                 "ROWS " + fixed_number(level.row_count(), 3u), 3u);
             draw_native_text(indexed, 211u, 42u,
@@ -1229,6 +1297,15 @@ struct RecoveredGame::Impl {
                 "GRAVITY " + fixed_number(level.gravity, 2u), 3u);
             draw_native_text(indexed, 211u, 75u, "ENTER EDIT", 2u);
             draw_native_text(indexed, 211u, 86u, "P PLAY TEST", 2u);
+        }
+        else if (custom_browser_original_levels) {
+            draw_native_text(indexed, 211u, 31u, "CUSTOM ROADS", 3u);
+            draw_native_text(indexed, 211u, 53u, "ENTER BACK", 2u);
+        }
+        else if (custom_browser_selection == 1u) {
+            draw_native_text(indexed, 211u, 31u, "30 ORIGINAL ROADS", 3u);
+            draw_native_text(indexed, 211u, 42u, "1-1 TO 10-3", 3u);
+            draw_native_text(indexed, 211u, 64u, "ENTER OPEN", 2u);
         }
         else {
             draw_native_text(indexed, 211u, 31u, "NEW ROAD", 3u);
@@ -1401,9 +1478,18 @@ struct RecoveredGame::Impl {
     }
 
     void reload_custom_levels() {
-        custom_levels = load_custom_level_catalog(custom_level_directory);
+        custom_levels = load_custom_level_catalog(
+            custom_browser_original_levels
+                ? original_level_directory : custom_level_directory);
+        if (custom_browser_original_levels) {
+            std::sort(custom_levels.begin(), custom_levels.end(),
+                [](const auto& left, const auto& right) {
+                    if (left.theme != right.theme) return left.theme < right.theme;
+                    return left.name < right.name;
+                });
+        }
         custom_browser_selection = std::min(
-            custom_browser_selection, custom_levels.size());
+            custom_browser_selection, custom_browser_total_items() - 1u);
     }
 
     void enter_custom_browser() {
@@ -1454,10 +1540,11 @@ struct RecoveredGame::Impl {
             [&](const auto& candidate) { return candidate.path == path; });
         if (found != custom_levels.end()) {
             custom_browser_selection = static_cast<std::size_t>(
-                std::distance(custom_levels.begin(), found)) + 1u;
+                std::distance(custom_levels.begin(), found)) +
+                custom_browser_level_offset();
             custom_editor_row = 0u;
             custom_editor_column = 3u;
-            enter_custom_editor(custom_browser_selection - 1u);
+            enter_custom_editor(custom_browser_level_index());
         }
     }
 
@@ -2003,8 +2090,14 @@ struct RecoveredGame::Impl {
         if (!input.up && !input.down && !input.enter_pressed &&
             !input.escape_pressed && !input.editor_play_pressed &&
             !input.editor_page_up_pressed && !input.editor_page_down_pressed) return;
-        const auto total_items = custom_levels.size() + 1u;
+        const auto total_items = custom_browser_total_items();
         if (input.escape_pressed) {
+            if (custom_browser_original_levels) {
+                custom_browser_original_levels = false;
+                custom_browser_selection = 1u;
+                enter_custom_browser();
+                return;
+            }
             active_screen = NativeScreen::MainMenu;
             main_selection = 3u;
             render_main_menu();
@@ -2024,13 +2117,25 @@ struct RecoveredGame::Impl {
             custom_browser_selection = std::min(
                 custom_browser_selection + 13u, total_items - 1u);
         }
-        else if (input.editor_play_pressed && custom_browser_selection != 0u) {
-            start_custom_level(custom_browser_selection - 1u);
+        else if (input.editor_play_pressed && custom_browser_selection_is_level()) {
+            start_custom_level(custom_browser_level_index());
             return;
         }
         else if (input.enter_pressed) {
-            if (custom_browser_selection == 0u) create_custom_level();
-            else enter_custom_editor(custom_browser_selection - 1u);
+            if (custom_browser_selection_is_level()) {
+                enter_custom_editor(custom_browser_level_index());
+            }
+            else if (custom_browser_original_levels) {
+                custom_browser_original_levels = false;
+                custom_browser_selection = 1u;
+                enter_custom_browser();
+            }
+            else if (custom_browser_selection == 0u) create_custom_level();
+            else {
+                custom_browser_original_levels = true;
+                custom_browser_selection = 0u;
+                enter_custom_browser();
+            }
             return;
         }
         render_custom_browser();
@@ -2067,7 +2172,8 @@ struct RecoveredGame::Impl {
         };
         if (input.escape_pressed) {
             if (custom_editor_dirty) save_custom_editor();
-            custom_browser_selection = custom_editor_index + 1u;
+            custom_browser_selection =
+                custom_editor_index + custom_browser_level_offset();
             enter_custom_browser();
             return;
         }
@@ -2270,6 +2376,7 @@ struct RecoveredGame::Impl {
             }
             if (main_selection == 3u &&
                 (key == SR_MENU_KEY_ENTER || key == SR_MENU_KEY_ESCAPE)) {
+                custom_browser_original_levels = false;
                 custom_browser_selection = 0u;
                 enter_custom_browser();
                 return;

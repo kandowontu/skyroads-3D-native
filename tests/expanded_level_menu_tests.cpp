@@ -1,5 +1,6 @@
 #include "expanded_level_menu.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <iostream>
@@ -71,6 +72,12 @@ int main() {
             "Original campaign thumbnails were not copied into their columns");
         require(framebuffer[9u * 320u + 1u] == 4,
             "A synthetic border was drawn around an already-bordered thumbnail");
+
+        std::fill(framebuffer.begin(), framebuffer.end(), 0u);
+        skyroads::draw_native_text(framebuffer, 0u, 0u, "1-1", 7u);
+        require(framebuffer[3u * 320u + 6u] == 7u &&
+                framebuffer[3u * 320u + 10u] == 7u,
+            "Compact native font did not render original-road hyphens");
 
         std::cout << "Four-column 60-level selector vectors passed\n";
         return 0;

@@ -64,6 +64,7 @@ std::array<std::uint8_t, 7> glyph(char character) {
     case '7': return {31,1,2,4,8,8,8};
     case '8': return {14,17,17,14,17,17,14};
     case '9': return {14,17,17,15,1,1,14};
+    case '-': return {0,0,0,31,0,0,0};
     default: return {};
     }
 }

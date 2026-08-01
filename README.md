@@ -108,6 +108,9 @@ Xmas completion counts are stored separately in `SKYXMAS.CFG`; the original
 Choose `EDITOR` below the original three main-menu entries to open the creation
 browser. It scans `custom_levels/*.srlevel`, lists every saved creation with
 paging, and includes the new `SKYBRIDGE RUN` and `NEBULA SLALOM` demo roads.
+The `ORIGINAL LEVELS` folder contains editable copies of all 30 decoded base-game
+roads, named `1-1` through `10-3`. Missing copies are imported from the embedded
+`ROADS.LZS` records at startup; valid edited copies are preserved between runs.
 Custom files preserve the recovered seven-column, 16-bit road-cell descriptors
 used directly by the original renderer, collision code, and physics.
 

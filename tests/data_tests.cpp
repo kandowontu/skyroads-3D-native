@@ -1,12 +1,15 @@
 #include "recovered_game.hpp"
 #include "custom_levels.hpp"
+#include "embedded_game_data.hpp"
 #include "expanded_level_menu.hpp"
 
 extern "C" {
 #include "gameplay.h"
 #include "graphics_archive.h"
+#include "road_archive.h"
 }
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -154,8 +157,17 @@ int main(int argc, char** argv) {
             input.enter_pressed = true;
             editor_game.timer_tick(input);
             input = {};
+            require(editor_game.screen() == skyroads::NativeScreen::CustomLevelBrowser &&
+                    editor_game.custom_level_count() == skyroads::kOriginalLevelCount,
+                "The ORIGINAL LEVELS folder did not list all 30 recovered roads");
+            input.down = true;
+            editor_game.timer_tick(input);
+            input = {};
+            input.enter_pressed = true;
+            editor_game.timer_tick(input);
+            input = {};
             require(editor_game.screen() == skyroads::NativeScreen::CustomLevelEditor,
-                "A listed creation did not open in the built-in editor");
+                "Original road 1-1 did not open in the built-in editor");
             const auto top_editor_hash = hash_bytes(editor_game.indexed_pixels());
             std::array<std::uint64_t, 3> spatial_hashes{};
             for (auto& spatial_hash : spatial_hashes) {
@@ -210,6 +222,40 @@ int main(int argc, char** argv) {
                 "Could not save the isolated finish-coast test road");
 
             skyroads::RecoveredGame finish_game(finish_root);
+            const auto original_bytes = skyroads::embedded_game_file(
+                skyroads::EmbeddedCampaign::SkyRoads, "roads.lzs");
+            SrRoadArchive original_roads{};
+            require(sr_load_road_archive(
+                    original_bytes.data(), original_bytes.size(), &original_roads) ==
+                    SR_ROAD_ARCHIVE_OK,
+                "Could not decode the embedded original roads for import testing");
+            require(original_roads.road_count == skyroads::kOriginalLevelCount + 1u,
+                "Embedded original road archive has an unexpected record count");
+            for (std::size_t level_index = 0u;
+                 level_index < skyroads::kOriginalLevelCount; ++level_index) {
+                const auto world = level_index / 3u + 1u;
+                const auto road = level_index % 3u + 1u;
+                const auto name = std::to_string(world) + "-" +
+                    std::to_string(road);
+                skyroads::CustomLevel imported;
+                require(skyroads::load_custom_level(
+                        finish_root / "custom_levels" / "ORIGINAL LEVELS" /
+                            (name + ".srlevel"),
+                        imported),
+                    "An original road was not materialized in ORIGINAL LEVELS");
+                const auto& source = original_roads.roads[level_index + 1u];
+                require(imported.name == name &&
+                        imported.theme == level_index / 3u &&
+                        imported.gravity == source.gravity &&
+                        imported.fuel == source.fuel &&
+                        imported.oxygen == source.oxygen &&
+                        imported.cells.size() ==
+                            source.row_count * skyroads::kCustomRoadColumns &&
+                        std::equal(imported.cells.begin(), imported.cells.end(),
+                            source.cells),
+                    "An imported original road differs from its decoded ROADS.LZS record");
+            }
+            sr_free_road_archive(&original_roads);
             skyroads::NativeInput finish_input;
             finish_input.enter_pressed = true;
             finish_game.timer_tick(finish_input);
@@ -220,6 +266,9 @@ int main(int argc, char** argv) {
                 finish_input = {};
             }
             finish_input.enter_pressed = true;
+            finish_game.timer_tick(finish_input);
+            finish_input = {};
+            finish_input.down = true;
             finish_game.timer_tick(finish_input);
             finish_input = {};
             finish_input.down = true;

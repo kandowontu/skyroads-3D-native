@@ -12,10 +12,14 @@ int main(int argc, char** argv) {
                      : std::filesystem::current_path());
         const auto output = argc > 2 ? std::filesystem::path(argv[2]) : std::filesystem::path("snapshot.ppm");
         const auto view = argc > 3 ? std::string(argv[3]) : std::string("game");
+        const bool original_levels_view = view == "original-levels" ||
+            view == "original-editor";
         const bool editor_view = view == "editor" || view == "editor-iso-left" ||
-            view == "editor-straight" || view == "editor-iso-right";
+            view == "editor-straight" || view == "editor-iso-right" ||
+            view == "original-editor";
         const bool xmas_view = view == "xmas-levels" || view == "xmas-game" ||
-            view == "creations" || editor_view || view == "custom-game";
+            view == "creations" || editor_view || view == "custom-game" ||
+            original_levels_view;
         skyroads::RecoveredGame game(root);
         skyroads::NativeInput input;
         if (view != "intro" && view != "demo") {
@@ -32,7 +36,7 @@ int main(int argc, char** argv) {
             }
         }
         else if (view == "creations" || editor_view ||
-            view == "custom-game") {
+            view == "custom-game" || original_levels_view) {
             for (unsigned item = 0; item < 3u; ++item) {
                 input.down = true;
                 game.timer_tick(input);
@@ -41,10 +45,28 @@ int main(int argc, char** argv) {
             input.enter_pressed = true;
             game.timer_tick(input); // main menu -> custom road browser
             input = {};
-            if (view != "creations") {
+            if (original_levels_view) {
                 input.down = true;
-                game.timer_tick(input); // first saved creation
+                game.timer_tick(input); // ORIGINAL LEVELS folder
                 input = {};
+                input.enter_pressed = true;
+                game.timer_tick(input);
+                input = {};
+                if (view == "original-editor") {
+                    input.down = true;
+                    game.timer_tick(input); // road 1-1
+                    input = {};
+                    input.enter_pressed = true;
+                    game.timer_tick(input);
+                    input = {};
+                }
+            }
+            else if (view != "creations") {
+                for (unsigned item = 0; item < 2u; ++item) {
+                    input.down = true;
+                    game.timer_tick(input); // skip folder, then select first creation
+                    input = {};
+                }
                 if (editor_view) input.enter_pressed = true;
                 else input.editor_play_pressed = true;
                 game.timer_tick(input);
@@ -95,7 +117,7 @@ int main(int argc, char** argv) {
             game.timer_tick(input);
             input = {};
         }
-        if (editor_view && view != "editor") {
+        if (editor_view && view != "editor" && view != "original-editor") {
             for (unsigned page = 0; page < 2u; ++page) {
                 input.editor_page_down_pressed = true;
                 game.timer_tick(input);
