@@ -1,0 +1,29 @@
+# Generated reverse-engineering output
+extracted/
+reverse/generated/
+reverse/ghidra-projects/
+reverse/tools/fontdump.conf
+
+# Native build output
+build/
+out/
+
+# Original game distribution (keep local; do not accidentally publish)
+*.lzs
+*.snd
+*.dat
+*.rec
+*.exe
+*.com
+*.cfg
+readme.txt
+
+# Local IDE/build variants
+Build*/
+.vs/
+.vscode/
+
+# Tool caches
+.tools/
+__pycache__/
+*.pyc
