@@ -1,9 +1,14 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(skyroads_native VERSION 1.0.0 LANGUAGES C CXX)
+project(skyroads_native VERSION 1.0.1 LANGUAGES C CXX)
 
 if(WIN32)
     enable_language(RC)
+endif()
+if(MSVC)
+    # Release executables must not require the Visual C++ redistributable.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY
+        "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -91,6 +96,12 @@ FetchContent_Declare(opal
     GIT_TAG 49f2007f1cc32c81561cb8a485734e1b58a843f7
     GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(opal)
+if(MSVC)
+    # Opal defaults to the DLL CRT; align the static library with this
+    # project's self-contained /MT release policy.
+    set_property(TARGET opal PROPERTY MSVC_RUNTIME_LIBRARY
+        "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 set(SKYROADS_RECOVERED_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(reverse/reconstructed)
@@ -140,6 +151,12 @@ add_executable(skyroads_native WIN32
     src/win32_opl_audio.cpp)
 target_link_libraries(skyroads_native PRIVATE
     skyroads_port_core skyroads_opl_synth user32 gdi32 winmm)
+if(MINGW)
+    # Keep libgcc, libstdc++, and winpthreads inside the executable so the
+    # release runs on a clean Windows installation without compiler DLLs.
+    target_link_options(skyroads_native PRIVATE
+        -static -static-libgcc -static-libstdc++)
+endif()
 
 add_executable(skyroads_snapshot src/snapshot_main.cpp)
 target_link_libraries(skyroads_snapshot PRIVATE skyroads_port_core)
@@ -153,6 +170,23 @@ add_test(NAME skyroads_recovered_integration COMMAND skyroads_tests
 add_executable(skyroads_opl_tests tests/opl_synth_tests.cpp)
 target_link_libraries(skyroads_opl_tests PRIVATE skyroads_opl_synth)
 add_test(NAME skyroads_native_opl COMMAND skyroads_opl_tests "${CMAKE_SOURCE_DIR}")
+
+if(MINGW)
+    add_test(NAME skyroads_self_contained_runtime
+        COMMAND "${CMAKE_COMMAND}"
+            "-DEXECUTABLE=$<TARGET_FILE:skyroads_native>"
+            "-DPE_INSPECTOR=${CMAKE_OBJDUMP}"
+            -DPE_INSPECTOR_MODE=objdump
+            -P "${CMAKE_SOURCE_DIR}/tools/check_pe_runtime.cmake")
+elseif(MSVC)
+    add_test(NAME skyroads_self_contained_runtime
+        COMMAND "${CMAKE_COMMAND}"
+            "-DEXECUTABLE=$<TARGET_FILE:skyroads_native>"
+            "-DPE_INSPECTOR=${CMAKE_LINKER}"
+            -DPE_INSPECTOR_MODE=link
+            -DSTRICT_WINDOWS_ONLY=ON
+            -P "${CMAKE_SOURCE_DIR}/tools/check_pe_runtime.cmake")
+endif()
 
 add_executable(skyroads_expanded_level_menu_tests tests/expanded_level_menu_tests.cpp)
 target_link_libraries(skyroads_expanded_level_menu_tests PRIVATE skyroads_port_core)

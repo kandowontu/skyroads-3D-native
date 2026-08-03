@@ -22,7 +22,9 @@ The first stable release combines the executable-authoritative DOS simulation
 with optional native enhancements: both 30-road campaigns in one selector,
 smooth high-definition presentation, recovered OPL2 audio, a visual road
 editor, spatial editor views, and optional in-level shortcuts. See the complete
-[1.0 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
+[1.0.1 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
+Version 1.0.1 statically links every non-Windows runtime after early 1.0 users
+reported missing MinGW libraries.
 
 ## Original game requirement
 
@@ -47,8 +49,10 @@ executable. Do not rename the original executable.
 The Windows host deliberately checks only the folder containing the running
 native executable. It does not search parent directories or silently use a
 different installation. No loose `.LZS`, `.DAT`, `.SND`, or `.REC` files are
-required at runtime. Startup stops with an explanatory message when neither
-original executable is present.
+required at runtime, and the compiler, C++, threading, and synthesis runtimes
+are linked into the release executable. Users do not need to install Visual C++,
+MinGW, or any other support library. Startup stops with an explanatory message
+when neither original executable is present.
 
 Building from source still requires legally obtained SkyRoads archives so CMake
 can generate the embedded-data translation unit. Point the cache variables at

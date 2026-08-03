@@ -1,9 +1,19 @@
-# SkyRoads Native 1.0
+# SkyRoads Native 1.0.1
 
-SkyRoads Native 1.0 is the first stable Windows release of the
-executable-authoritative SkyRoads reconstruction. The original DOS executable,
-data formats, fixed-point behavior, timing, and captured VGA output remain the
-reference; native features are layered around that recovered core.
+SkyRoads Native 1.0.1 is a compatibility hotfix for the first stable Windows
+release of the executable-authoritative SkyRoads reconstruction. The original
+DOS executable, data formats, fixed-point behavior, timing, and captured VGA
+output remain the reference; native features are layered around that recovered
+core.
+
+## 1.0.1 compatibility fix
+
+The original 1.0 package unintentionally depended on `libgcc_s_seh-1.dll`,
+`libstdc++-6.dll`, and `libwinpthread-1.dll`. Version 1.0.1 statically links the
+compiler, C++, threading, and OPL synthesis runtimes. The official executable's
+PE import table now contains only `KERNEL32.dll`, `USER32.dll`, `GDI32.dll`, and
+`WINMM.dll`, all provided by Windows. No runtime installer or extra DLL is
+needed.
 
 ## Installation
 
@@ -18,7 +28,9 @@ BlueMoon also provides direct downloads for the
 [full original SkyRoads](http://www.bluemoon.ee/history/skyroads/skyroads.zip)
 and [full Xmas Special](http://www.bluemoon.ee/history/skyroads/skyxmas.zip).
 No loose `.LZS`, `.DAT`, `.SND`, or `.REC` files are required by the native
-executable at runtime.
+executable at runtime. The compiler, C++, threading, and audio-synthesis
+runtimes are statically linked; no Visual C++ or MinGW runtime installation is
+needed.
 
 ## Native enhancements
 
@@ -40,6 +52,7 @@ executable at runtime.
   editor and high-definition option.
 - Adds optional `Ctrl+F9` through `Ctrl+F12` in-level shortcuts for 200% speed,
   zero gravity, resource refill, and mid-air jumping/steering.
+- Ships as one self-contained executable with no third-party runtime DLLs.
 
 ## Fidelity and verification
 
@@ -53,9 +66,9 @@ executable at runtime.
 
 ## Documentation and credits
 
-- [Level editor manual](https://github.com/kandowontu/skyroads-native/blob/v1.0.0/EDITOR_README.md)
-- [Complete original and native project credits](https://github.com/kandowontu/skyroads-native/blob/v1.0.0/CREDITS.md)
-- [Third-party notices](https://github.com/kandowontu/skyroads-native/blob/v1.0.0/THIRD_PARTY_NOTICES.md)
+- [Level editor manual](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/EDITOR_README.md)
+- [Complete original and native project credits](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/CREDITS.md)
+- [Third-party notices](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/THIRD_PARTY_NOTICES.md)
 
 Original SkyRoads credits:
 
