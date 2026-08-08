@@ -16,15 +16,16 @@ old approximate gameplay and perspective renderer are no longer on the active
 path. The host also streams the recovered OPL register schedule through a
 native OPL2 synthesizer.
 
-## SkyRoads Native 1.0
+## SkyRoads Native 1.0.2
 
 The first stable release combines the executable-authoritative DOS simulation
 with optional native enhancements: both 30-road campaigns in one selector,
 smooth high-definition presentation, recovered OPL2 audio, a visual road
 editor, spatial editor views, and optional in-level shortcuts. See the complete
-[1.0.1 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
-Version 1.0.1 statically links every non-Windows runtime after early 1.0 users
-reported missing MinGW libraries.
+[1.0.2 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
+Version 1.0.2 includes the self-contained runtime fix introduced in 1.0.1 and
+adds true recovered-geometry Hi-Def polygons, a polygon player craft, fullscreen
+support, visible completion counts, and editor/import corrections.
 
 ## Original game requirement
 
@@ -128,6 +129,9 @@ the four-column 320x200 layout.
 
 Xmas completion counts are stored separately in `SKYXMAS.CFG`; the original
 30-level `SKYROADS.CFG` layout is left compatible and unchanged.
+Every selector road shows its saved completion count as a digit. New roads
+start at `0`, and counts above nine are displayed as `9` in the compact layout.
+The count is bright yellow so it remains distinct from numeric road names.
 
 ## Built-in custom road editor
 
@@ -159,10 +163,18 @@ and play-testing instructions are in [EDITOR_README.md](EDITOR_README.md).
 ## Native display and shortcut extensions
 
 The original Settings screen includes a sixth `HI DEF` control. When enabled,
-the host presents the recovered frame through smoothly shaded high-resolution
-quads; the original 320x200 indexed renderer and fixed-point simulation remain
-unchanged underneath. The option is stored in `SKYROADS.NATIVE.CFG` beside the
-game.
+the recovered TREK renderer reports every individual road, wall, ramp, and
+tunnel face in its original painter order. The host rerasterizes those faces as
+smooth high-resolution polygons and presents each completed geometry frame
+atomically through a double buffer. The player craft is replaced by a palette-
+matched polygon model clipped by the recovered road-visibility mask, so
+foreground tunnels occlude it correctly. World artwork and dashboard graphics
+remain pixel-authentic rather than filtered. The verified 320x200 indexed frame
+and fixed-point simulation remain unchanged underneath. The option is stored
+in `SKYROADS.NATIVE.CFG` beside the game.
+
+Press `Alt+Enter` to switch between the resizable window and borderless
+fullscreen on the current monitor. Press `Escape` on the main menu to quit.
 
 During a level, the following native shortcuts are available:
 

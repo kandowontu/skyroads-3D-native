@@ -33,6 +33,13 @@ int first_changed_row(const std::vector<std::uint8_t>& framebuffer) {
     return 182;
 }
 
+std::size_t count_color(
+    const std::vector<std::uint8_t>& framebuffer,
+    std::uint8_t color) {
+    return static_cast<std::size_t>(
+        std::count(framebuffer.begin(), framebuffer.end(), color));
+}
+
 } // namespace
 
 int main() {
@@ -102,6 +109,27 @@ int main() {
             "Could not render height-comparison fixtures");
         require(first_changed_row(high_frame) < first_changed_row(flat_frame),
             "High blocks did not visibly rise above flat road cells");
+
+        require(skyroads::editor_cell_has_geometry(0x0200u) &&
+                skyroads::editor_cell_has_geometry(0x0400u) &&
+                !skyroads::editor_cell_has_geometry(0x0000u) &&
+                skyroads::editor_cell_color(0x0200u) == 0x3du &&
+                skyroads::editor_cell_color(0x0400u) == 0x3du,
+            "Shape-only original descriptors were classified as empty cells");
+        skyroads::CustomLevel shape_only = level;
+        std::fill(shape_only.cells.begin(), shape_only.cells.end(), 0x0200u);
+        std::vector<std::uint8_t> shape_only_iso(320u * 200u, 7u);
+        std::vector<std::uint8_t> shape_only_straight(320u * 200u, 7u);
+        require(skyroads::render_editor_spatial_view(
+                    shape_only_iso, shape_only, 0u, 0u, 0u,
+                    skyroads::EditorViewMode::IsometricLeft) &&
+                skyroads::render_editor_spatial_view(
+                    shape_only_straight, shape_only, 0u, 0u, 0u,
+                    skyroads::EditorViewMode::Straight),
+            "Could not render shape-only original road descriptors");
+        require(count_color(shape_only_iso, 0x3du) != 0u &&
+                count_color(shape_only_straight, 0x3du) != 0u,
+            "Shape-only original descriptors did not produce visible height");
 
         std::cout << "Top, left isometric, straight, and right isometric editor views passed\n";
         return 0;

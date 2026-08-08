@@ -1,5 +1,6 @@
 #include "recovered_game.hpp"
 #include "custom_levels.hpp"
+#include "editor_3d_view.hpp"
 #include "embedded_game_data.hpp"
 #include "expanded_level_menu.hpp"
 
@@ -79,6 +80,19 @@ int main(int argc, char** argv) {
         require(game.screen() == skyroads::NativeScreen::MainMenu,
             "Any key should take the recovered intro to the main menu");
         const auto main_hash = hash_bytes(game.indexed_pixels());
+
+        {
+            skyroads::RecoveredGame quit_game(root);
+            skyroads::NativeInput quit_input;
+            quit_input.enter_pressed = true;
+            quit_game.timer_tick(quit_input);
+            quit_input = {};
+            quit_input.escape_pressed = true;
+            quit_game.timer_tick(quit_input);
+            require(quit_game.quit_requested() &&
+                    quit_game.screen() == skyroads::NativeScreen::MainMenu,
+                "Main-menu Escape activated an item instead of requesting exit");
+        }
 
         {
             skyroads::RecoveredGame menu_game(root);
@@ -231,6 +245,7 @@ int main(int argc, char** argv) {
                 "Could not decode the embedded original roads for import testing");
             require(original_roads.road_count == skyroads::kOriginalLevelCount + 1u,
                 "Embedded original road archive has an unexpected record count");
+            skyroads::CustomLevel final_original_level;
             for (std::size_t level_index = 0u;
                  level_index < skyroads::kOriginalLevelCount; ++level_index) {
                 const auto world = level_index / 3u + 1u;
@@ -254,6 +269,22 @@ int main(int argc, char** argv) {
                         std::equal(imported.cells.begin(), imported.cells.end(),
                             source.cells),
                     "An imported original road differs from its decoded ROADS.LZS record");
+                if (level_index + 1u == skyroads::kOriginalLevelCount) {
+                    final_original_level = imported;
+                }
+            }
+            for (const auto view : {
+                     skyroads::EditorViewMode::IsometricLeft,
+                     skyroads::EditorViewMode::Straight,
+                     skyroads::EditorViewMode::IsometricRight}) {
+                std::vector<std::uint8_t> editor_frame(320u * 200u, 7u);
+                require(skyroads::render_editor_spatial_view(
+                        editor_frame, final_original_level,
+                        45u, 45u, 0u, view),
+                    "Could not render the original road 10-3 spatial fixture");
+                require(std::count(
+                        editor_frame.begin(), editor_frame.end(), 0x3du) != 0,
+                    "Original road 10-3 lost its shape-only obstacle height");
             }
             sr_free_road_archive(&original_roads);
             skyroads::NativeInput finish_input;
@@ -359,6 +390,13 @@ int main(int argc, char** argv) {
         }
         require(game.screen() == skyroads::NativeScreen::Playing,
             "Original 36-tick run_level fade did not enter gameplay");
+        require(game.high_definition_scene_available() &&
+                game.high_definition_background_pixels().size() == 320u * 200u &&
+                game.high_definition_road_pixels().size() == 320u * 200u &&
+                !game.high_definition_road_shapes().empty() &&
+                game.high_definition_ship_exclusion_mask().size() == 320u * 200u &&
+                game.high_definition_ship_model().visible,
+            "Recovered road geometry was not exposed for Hi-Def presentation");
         require(game.road_distance() == UINT32_C(0x00030000),
             "Recovered gameplay did not use the executable's initial distance");
         const auto initial_game_hash = hash_bytes(game.indexed_pixels());

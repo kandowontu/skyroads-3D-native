@@ -1,8 +1,8 @@
 #include <windows.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,1,0
- PRODUCTVERSION 1,0,1,0
+ FILEVERSION 1,0,2,0
+ PRODUCTVERSION 1,0,2,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -19,12 +19,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Unofficial SkyRoads Native project\0"
             VALUE "FileDescription", "SkyRoads Native Windows reconstruction\0"
-            VALUE "FileVersion", "1.0.1.0\0"
+            VALUE "FileVersion", "1.0.2.0\0"
             VALUE "InternalName", "skyroads_native\0"
             VALUE "LegalCopyright", "Original SkyRoads (c) Bluemoon Interactive; native port (c) 2026 kandowontu\0"
             VALUE "OriginalFilename", "skyroads_native.exe\0"
             VALUE "ProductName", "SkyRoads Native\0"
-            VALUE "ProductVersion", "1.0.1\0"
+            VALUE "ProductVersion", "1.0.2\0"
             VALUE "Comments", "Original game: http://www.bluemoon.ee/history/skyroads/\0"
         END
     END

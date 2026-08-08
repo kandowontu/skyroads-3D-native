@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hd_renderer.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -102,6 +104,18 @@ public:
     [[nodiscard]] std::uint16_t last_ship_frame() const;
     [[nodiscard]] std::uint16_t selected_input_mode() const;
     [[nodiscard]] bool high_definition_enabled() const;
+    [[nodiscard]] bool quit_requested() const;
+    [[nodiscard]] bool high_definition_scene_available() const;
+    [[nodiscard]] const std::vector<std::uint32_t>&
+        high_definition_background_pixels() const;
+    [[nodiscard]] const std::vector<std::uint32_t>&
+        high_definition_road_pixels() const;
+    [[nodiscard]] const std::vector<RecoveredRoadShape>&
+        high_definition_road_shapes() const;
+    [[nodiscard]] std::size_t high_definition_ship_layer() const;
+    [[nodiscard]] const RecoveredShipModel& high_definition_ship_model() const;
+    [[nodiscard]] const std::vector<std::uint8_t>&
+        high_definition_ship_exclusion_mask() const;
     [[nodiscard]] bool air_jump_enabled() const;
     [[nodiscard]] bool no_gravity_enabled() const;
     [[nodiscard]] bool overdrive_enabled() const;

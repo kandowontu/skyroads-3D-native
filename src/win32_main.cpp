@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -25,6 +26,10 @@ std::array<bool, 256> g_held{};
 std::array<bool, 256> g_pressed{};
 std::filesystem::path g_data_root;
 HWND g_window{};
+bool g_fullscreen{};
+DWORD g_windowed_style{};
+DWORD g_windowed_ex_style{};
+WINDOWPLACEMENT g_windowed_placement{sizeof(WINDOWPLACEMENT)};
 constexpr std::uint16_t kMouseInputMode = 2;
 constexpr std::uint16_t kDosJoystickAxisMaximum = 0x1770u;
 
@@ -72,6 +77,45 @@ struct WindowBackBuffer {
 
 WindowBackBuffer g_back_buffer;
 std::vector<std::uint32_t> g_hd_pixels;
+
+void toggle_fullscreen(HWND window) {
+    if (!g_fullscreen) {
+        MONITORINFO monitor{};
+        monitor.cbSize = sizeof(monitor);
+        g_windowed_placement.length = sizeof(g_windowed_placement);
+        const auto display = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+        if (!GetWindowPlacement(window, &g_windowed_placement) ||
+            !GetMonitorInfoW(display, &monitor)) return;
+
+        g_windowed_style = static_cast<DWORD>(
+            GetWindowLongPtrW(window, GWL_STYLE));
+        g_windowed_ex_style = static_cast<DWORD>(
+            GetWindowLongPtrW(window, GWL_EXSTYLE));
+        const auto fullscreen_style =
+            (g_windowed_style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP;
+        const auto fullscreen_ex_style = g_windowed_ex_style &
+            ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE);
+        SetWindowLongPtrW(window, GWL_STYLE, fullscreen_style);
+        SetWindowLongPtrW(window, GWL_EXSTYLE, fullscreen_ex_style);
+        SetWindowPos(window, HWND_TOP,
+            monitor.rcMonitor.left, monitor.rcMonitor.top,
+            monitor.rcMonitor.right - monitor.rcMonitor.left,
+            monitor.rcMonitor.bottom - monitor.rcMonitor.top,
+            SWP_FRAMECHANGED | SWP_NOOWNERZORDER);
+        g_fullscreen = true;
+    }
+    else {
+        SetWindowLongPtrW(window, GWL_STYLE, g_windowed_style);
+        SetWindowLongPtrW(window, GWL_EXSTYLE, g_windowed_ex_style);
+        g_windowed_placement.length = sizeof(g_windowed_placement);
+        SetWindowPlacement(window, &g_windowed_placement);
+        SetWindowPos(window, nullptr, 0, 0, 0, 0,
+            SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE |
+                SWP_NOOWNERZORDER | SWP_NOZORDER);
+        g_fullscreen = false;
+    }
+    InvalidateRect(window, nullptr, FALSE);
+}
 
 std::uint16_t normalize_joystick_axis(
     DWORD value, UINT minimum, UINT maximum) {
@@ -241,9 +285,17 @@ void paint(HWND window) {
     unsigned bitmap_width = skyroads::kScreenWidth;
     unsigned bitmap_height = skyroads::kScreenHeight;
     const std::uint32_t* bitmap_pixels = g_game->pixels().data();
-    if (g_game->high_definition_enabled()) {
-        skyroads::render_smooth_quads(
-            g_game->pixels(), skyroads::kScreenWidth, skyroads::kScreenHeight,
+    if (g_game->high_definition_enabled() &&
+        g_game->high_definition_scene_available()) {
+        skyroads::render_recovered_road_polygons(
+            g_game->high_definition_background_pixels(),
+            g_game->high_definition_road_pixels(), g_game->pixels(),
+            g_game->high_definition_road_shapes(),
+            g_game->high_definition_ship_layer(),
+            g_game->high_definition_ship_model(),
+            g_game->high_definition_ship_exclusion_mask(),
+            nullptr, nullptr, 1.0,
+            skyroads::kScreenWidth, skyroads::kScreenHeight,
             static_cast<unsigned>(width), static_cast<unsigned>(height),
             g_hd_pixels);
         bitmap_width = static_cast<unsigned>(width);
@@ -279,6 +331,17 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         return 1;
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN: {
+        const bool alt_context =
+            (static_cast<std::uintptr_t>(lparam) & (1u << 29u)) != 0u ||
+            (GetKeyState(VK_MENU) & 0x8000) != 0;
+        if (wparam == VK_RETURN && alt_context) {
+            const bool repeated =
+                (static_cast<std::uintptr_t>(lparam) & (1u << 30u)) != 0u;
+            if (!repeated) toggle_fullscreen(window);
+            g_held[VK_RETURN] = false;
+            g_pressed[VK_RETURN] = false;
+            return 0;
+        }
         const auto key = static_cast<unsigned>(wparam);
         if (key < g_held.size()) {
             if (!g_held[key]) g_pressed[key] = true;
@@ -288,6 +351,11 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     }
     case WM_KEYUP:
     case WM_SYSKEYUP: {
+        if (wparam == VK_RETURN &&
+            (static_cast<std::uintptr_t>(lparam) & (1u << 29u)) != 0u) {
+            g_held[VK_RETURN] = false;
+            return 0;
+        }
         const auto key = static_cast<unsigned>(wparam);
         if (key < g_held.size()) g_held[key] = false;
         return 0;
@@ -376,6 +444,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command) {
             while (accumulator >= tick_seconds) {
                 const auto before_game_tick = g_game->gameplay_ticks();
                 g_game->timer_tick(collect_input());
+                if (g_game->quit_requested()) {
+                    DestroyWindow(window);
+                    running = false;
+                    break;
+                }
                 const auto opl_writes = g_game->consume_opl_writes();
                 if (auto effect = g_game->consume_pcm_effect()) {
                     opl_audio.start_effect(std::move(*effect));

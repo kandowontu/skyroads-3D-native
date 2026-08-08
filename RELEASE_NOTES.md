@@ -1,23 +1,51 @@
-# SkyRoads Native 1.0.1
+# SkyRoads Native 1.0.2
 
-SkyRoads Native 1.0.1 is a compatibility hotfix for the first stable Windows
-release of the executable-authoritative SkyRoads reconstruction. The original
-DOS executable, data formats, fixed-point behavior, timing, and captured VGA
-output remain the reference; native features are layered around that recovered
-core.
+SkyRoads Native 1.0.2 is the second update to the executable-authoritative
+Windows reconstruction. It keeps the recovered DOS simulation, timing, data
+formats, and VGA output as the reference while improving the optional native
+presentation and editor around that verified core.
 
-## 1.0.1 compatibility fix
+## What is new in 1.0.2
 
-The original 1.0 package unintentionally depended on `libgcc_s_seh-1.dll`,
-`libstdc++-6.dll`, and `libwinpthread-1.dll`. Version 1.0.1 statically links the
-compiler, C++, threading, and OPL synthesis runtimes. The official executable's
-PE import table now contains only `KERNEL32.dll`, `USER32.dll`, `GDI32.dll`, and
-`WINMM.dll`, all provided by Windows. No runtime installer or extra DLL is
-needed.
+- Replaces the Hi-Def screen filter with high-resolution polygons generated
+  from the original TREK road, wall, ramp, and tunnel geometry in recovered
+  painter order.
+- Adds a palette-matched polygon player craft in Hi-Def mode. The recovered
+  road-visibility mask now clips the craft correctly beneath foreground
+  tunnels.
+- Presents completed Hi-Def polygon frames atomically through the existing
+  Windows back buffer, eliminating the discontinuous hybrid-frame flicker.
+- Adds `Alt+Enter` borderless fullscreen support.
+- Makes `Escape` quit from the main menu instead of entering level selection.
+- Adds saved completion digits from `0` through `9` to the four-column level
+  selector. Counts are bright yellow so they cannot be confused with numeric
+  road names.
+- Refines the title-screen Editor lettering to match the original menu style.
+- Corrects the editor's handling of original shape-only road descriptors such
+  as `0x0200` and `0x0400`; level 10-3 now shows its obstacle heights in the
+  top, straight, and both isometric views.
+- Adds direct snapshot coverage for original level 10-3 and regression coverage
+  for shape-only geometry, polygon ship clipping, completion colors, and the
+  recovered polygon scene.
+
+## Existing native enhancements
+
+- Combines the 30 original roads and 30 Xmas Special roads in a four-column,
+  60-level selector with each campaign's original world artwork.
+- Plays the recovered OPL2 event stream through a native synthesizer and mixes
+  sound effects without interrupting the music.
+- Includes a visual built-in level editor with mouse painting, exact recovered
+  cell materials, editable physics/resources, immediate play-testing, and top,
+  straight, left-isometric, and right-isometric views.
+- Imports all 30 base-game roads into an `ORIGINAL LEVELS` editor folder as
+  `1-1` through `10-3` while preserving edited copies.
+- Restores the original finish-tube coast before the level-complete result.
+- Supports optional `Ctrl+F9` through `Ctrl+F12` in-level shortcuts for 200%
+  speed, zero gravity, resource refill, and mid-air jumping/steering.
 
 ## Installation
 
-1. Download the Windows x64 package from the GitHub release.
+1. Download the Windows x64 package from this GitHub release.
 2. Obtain SkyRoads or SkyRoads Xmas Special from
    [BlueMoon's official SkyRoads page](http://www.bluemoon.ee/history/skyroads/).
 3. Extract the original game and place `skyroads_native.exe` beside
@@ -27,48 +55,28 @@ needed.
 BlueMoon also provides direct downloads for the
 [full original SkyRoads](http://www.bluemoon.ee/history/skyroads/skyroads.zip)
 and [full Xmas Special](http://www.bluemoon.ee/history/skyroads/skyxmas.zip).
-No loose `.LZS`, `.DAT`, `.SND`, or `.REC` files are required by the native
-executable at runtime. The compiler, C++, threading, and audio-synthesis
-runtimes are statically linked; no Visual C++ or MinGW runtime installation is
-needed.
+No loose `.LZS`, `.DAT`, `.SND`, or `.REC` files are required at runtime.
 
-## Native enhancements
-
-- Combines the 30 original roads and 30 Xmas Special roads in a four-column,
-  60-level selector with each campaign's original world artwork.
-- Adds optional high-definition presentation using smoothly shaded native
-  polygons while retaining the original 320x200 indexed simulation beneath it.
-- Plays the recovered OPL2 event stream through a native synthesizer and mixes
-  sound effects without interrupting the music.
-- Adds a visual built-in level editor with mouse painting, exact recovered cell
-  materials, editable physics/resources, and immediate play-testing.
-- Adds top, straight, left-isometric, and right-isometric editor views so block
-  heights, walls, and ramps can be inspected spatially.
-- Imports all 30 base-game roads into an `ORIGINAL LEVELS` editor folder as
-  `1-1` through `10-3`, while preserving edited copies.
-- Includes two custom demonstration roads with safe fuel and oxygen budgets.
-- Restores the original finish-tube coast before the level-complete result.
-- Preserves the original menu background and styling while integrating the
-  editor and high-definition option.
-- Adds optional `Ctrl+F9` through `Ctrl+F12` in-level shortcuts for 200% speed,
-  zero gravity, resource refill, and mid-air jumping/steering.
-- Ships as one self-contained executable with no third-party runtime DLLs.
+The Windows x64 executable statically links the compiler, C++, threading, and
+audio-synthesis runtimes. Its PE import table contains only Windows system
+libraries, so users do not need Visual C++, MinGW, or another runtime package.
 
 ## Fidelity and verification
 
-- All 7 native integration suites and all 29 reconstructed-core suites pass.
+- All 8 native integration suites pass under both MinGW and MSVC x64.
+- All 29 reconstructed-core suites pass.
 - All 1,702 captured DOS VGA gameplay frames match byte-for-byte.
 - All 635 DOS-observed changed VGA palette states match byte-for-byte and in
   their original order.
 - Original demo input, physics, collisions, menu timing, palette transitions,
-  finish timing, music scheduling, and rendering are covered by deterministic
+  finish timing, music scheduling, and rendering remain covered by deterministic
   executable-authoritative regressions.
 
 ## Documentation and credits
 
-- [Level editor manual](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/EDITOR_README.md)
-- [Complete original and native project credits](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/CREDITS.md)
-- [Third-party notices](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.1/THIRD_PARTY_NOTICES.md)
+- [Level editor manual](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.2/EDITOR_README.md)
+- [Complete original and native project credits](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.2/CREDITS.md)
+- [Third-party notices](https://github.com/kandowontu/skyroads-3D-native/blob/v1.0.2/THIRD_PARTY_NOTICES.md)
 
 Original SkyRoads credits:
 

@@ -170,19 +170,19 @@ void draw_main_menu_editor_label(
     };
     static constexpr std::array<MenuGlyph, 6> glyphs{{
         {9u, {0x1ff,0x1ff,0x1ff,0x1c0,0x1c0,0x1c0,0x1fc,0x1fc,
-              0x1fc,0x1c0,0x1c0,0x1c0,0x1ff,0x1ff,0x1ff,0x1ff}},
-        {9u, {0x007,0x007,0x007,0x007,0x07f,0x0ff,0x1c7,0x1c7,
-              0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x0ff,0x07f}},
+              0x1fc,0x1c0,0x1c0,0x1c0,0x1c0,0x1ff,0x1ff,0x1ff}},
+        {8u, {0x007,0x007,0x007,0x077,0x0ff,0x0ff,0x0e7,0x0e7,
+              0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x077}},
         {3u, {0x007,0x007,0x007,0x000,0x000,0x007,0x007,0x007,
               0x007,0x007,0x007,0x007,0x007,0x007,0x007,0x007}},
-        {7u, {0x01c,0x01c,0x01c,0x01c,0x07f,0x07f,0x07f,0x01c,
-              0x01c,0x01c,0x01c,0x01c,0x01c,0x01f,0x00e,0x00c}},
-        {9u, {0x000,0x000,0x000,0x07c,0x0fe,0x1c7,0x1c7,0x1c7,
-              0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x1c7,0x0fe,0x07c}},
-        {8u, {0x000,0x000,0x000,0x0ee,0x0ff,0x0ff,0x0f7,0x0e7,
-              0x0e7,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0}},
+        {5u, {0x000,0x00e,0x00e,0x01f,0x01f,0x01f,0x00e,0x00e,
+              0x00e,0x00e,0x00e,0x00e,0x00e,0x00f,0x00f,0x007}},
+        {8u, {0x000,0x000,0x000,0x03c,0x07e,0x0ff,0x0e7,0x0e7,
+              0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07e,0x03c}},
+        {5u, {0x000,0x000,0x000,0x01d,0x01f,0x01f,0x01f,0x01c,
+              0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c}},
     }};
-    constexpr int origin_x = 132;
+    constexpr int origin_x = 136;
     constexpr int origin_y = 183;
 
     const auto draw_pass = [&](std::uint8_t color, bool outline) {
@@ -211,8 +211,9 @@ void draw_main_menu_editor_label(
     };
 
     /* MAINMENU.LZS uses heavy white bodies with a one-pixel yellow halo only
-       around the active word.  These title-case glyphs follow the original
-       16-pixel menu proportions instead of borrowing the serifed BIOS font. */
+       around the active word.  The d/t/o/r bodies above are constructed from
+       its original Help p and Controls t/o/r lettering; E and i use the same
+       three-pixel stroke grammar. */
     if (selected) draw_pass(0xbfu, true);
     draw_pass(0xc0u, false);
 }
@@ -396,7 +397,11 @@ struct RecoveredGame::Impl {
     explicit Impl(std::filesystem::path root_path)
         : root(std::filesystem::absolute(std::move(root_path))),
           indexed(kFramebufferSize), rgba(kFramebufferSize),
-          gameplay_background(kFramebufferSize) {
+          gameplay_background(kFramebufferSize),
+          hd_road_indexed(kFramebufferSize),
+          hd_background_rgba(kFramebufferSize),
+          hd_road_rgba(kFramebufferSize),
+          hd_ship_exclusion_mask(kFramebufferSize) {
         load_all();
         load_config_file();
         load_native_config_file();
@@ -420,6 +425,7 @@ struct RecoveredGame::Impl {
         sr_free_road_archive(&xmas_roads);
         sr_free_graphics_archive(&dashboard);
         sr_free_car_sprites(&cars);
+        sr_free_trek_archive(&hd_trek);
         sr_free_trek_archive(&trek);
         sr_free_road_archive(&roads);
     }
@@ -439,13 +445,24 @@ struct RecoveredGame::Impl {
     std::array<std::uint8_t, kPaletteSize> intro_animation_palette{};
     std::array<std::uint8_t, kPaletteSize> intro_final_palette{};
     std::array<std::uint8_t, kPaletteSize> gameplay_palette{};
+    std::vector<std::uint8_t> hd_road_indexed;
+    std::vector<std::uint32_t> hd_background_rgba;
+    std::vector<std::uint32_t> hd_road_rgba;
+    std::vector<RecoveredRoadShape> hd_road_shapes;
+    std::size_t hd_ship_layer{};
+    RecoveredShipModel hd_ship_model;
+    std::vector<std::uint8_t> hd_ship_exclusion_mask;
+    std::uint8_t hd_ship_shadow_palette_index{0x40u};
+    bool hd_scene_ready{};
 
     SrRoadArchive roads{};
     SrRoadArchive xmas_roads{};
     SrTrekArchive trek{};
+    SrTrekArchive hd_trek{};
     SrCarSprites cars{};
     SrRendererTables renderer_tables{};
     SrVgaRendererState renderer_state{};
+    SrVgaRendererState hd_renderer_state{};
     SrRoadFrameParams last_road_params{};
     SrEmbeddedHud hud{};
     SrGraphicsArchive dashboard{};
@@ -481,6 +498,7 @@ struct RecoveredGame::Impl {
     SrSettingsMenuState settings_state{};
     unsigned settings_selection{};
     bool high_definition{};
+    bool quit_requested{};
     SrLevelMenuState level_state{};
     SrIntroSequence intro_sequence{};
     SrMenuFlowState menu_flow{};
@@ -527,6 +545,30 @@ struct RecoveredGame::Impl {
 
     static void native_opl_write(void* context, std::uint8_t reg, std::uint8_t value) {
         static_cast<Impl*>(context)->pending_opl_writes.push_back({reg, value});
+    }
+
+    static void hd_begin_shape(void* context, std::uint8_t color) {
+        auto* self = static_cast<Impl*>(context);
+        self->hd_road_shapes.push_back({});
+        self->hd_road_shapes.back().palette_index = color;
+    }
+
+    static void hd_shape_span(
+        void* context,
+        std::int16_t y,
+        std::int16_t left,
+        std::int16_t right) {
+        auto* self = static_cast<Impl*>(context);
+        if (self->hd_road_shapes.empty()) return;
+        self->hd_road_shapes.back().spans.push_back({y, left, right});
+    }
+
+    static void hd_end_shape(void*) {
+    }
+
+    static void hd_mark_ship_layer(void* context) {
+        auto* self = static_cast<Impl*>(context);
+        self->hd_ship_layer = self->hd_road_shapes.size();
     }
 
     static void gameplay_sound(void* context, unsigned effect) {
@@ -593,6 +635,10 @@ struct RecoveredGame::Impl {
             sr_load_trek_archive(trek_bytes.data(), trek_bytes.size(), &trek) ==
                 SR_TREK_ARCHIVE_OK,
             "trekdat.lzs");
+        require_file_load(
+            sr_load_trek_archive(trek_bytes.data(), trek_bytes.size(), &hd_trek) ==
+                SR_TREK_ARCHIVE_OK,
+            "high-definition trekdat.lzs");
         require_file_load(
             sr_load_car_sprites(car_bytes.data(), car_bytes.size(), &cars) != 0,
             "cars.lzs");
@@ -789,7 +835,14 @@ struct RecoveredGame::Impl {
             level_assets.palette, stream.color_map_section(0xf0));
         level_assets.completion_marker = stream.picture(0xf0);
         level_assets.expanded_palette = level_assets.palette;
-        if (xmas_available) load_xmas_level_menu_art();
+        if (xmas_available) {
+            load_xmas_level_menu_art();
+            constexpr std::array<std::uint8_t, 3> completion_yellow{
+                0x3fu, 0x3fu, 0x00u};
+            std::copy(completion_yellow.begin(), completion_yellow.end(),
+                level_assets.expanded_palette.begin() +
+                    kExpandedCompletionTextColor * 3u);
+        }
     }
 
     static std::uint32_t palette_distance(
@@ -826,7 +879,9 @@ struct RecoveredGame::Impl {
         }
 
         unsigned combined_count = level_assets.base_color_count;
-        while (combined_count < 256u) {
+        /* Keep the final palette entry reserved for the yellow completion
+           digits added by the four-column native selector. */
+        while (combined_count < kExpandedCompletionTextColor) {
             unsigned best_color = xmas_palette.count();
             std::uint64_t best_score = 0;
             for (unsigned color = 0; color < xmas_palette.count(); ++color) {
@@ -1015,6 +1070,87 @@ struct RecoveredGame::Impl {
         save_native_config_file();
     }
 
+    bool hd_gameplay_scene_active() const {
+        return hd_scene_ready &&
+            (active_screen == NativeScreen::LevelTransition ||
+             active_screen == NativeScreen::Playing ||
+             active_screen == NativeScreen::Demo ||
+             active_screen == NativeScreen::LevelResult);
+    }
+
+    static std::uint32_t palette_color(
+        const std::array<std::uint8_t, kPaletteSize>& palette,
+        std::uint8_t index) {
+        const std::size_t color = index * 3u;
+        const auto expand = [](std::uint8_t value) -> std::uint32_t {
+            return static_cast<std::uint32_t>((value << 2u) | (value >> 4u));
+        };
+        return (expand(palette[color]) << 16u) |
+            (expand(palette[color + 1u]) << 8u) |
+            expand(palette[color + 2u]);
+    }
+
+    void map_hd_ship_palette(
+        const std::array<std::uint8_t, kPaletteSize>& palette) {
+        struct Candidate {
+            std::uint32_t color{};
+            unsigned red{};
+            unsigned green{};
+            unsigned blue{};
+            unsigned brightness{};
+            int red_score{};
+        };
+        std::vector<Candidate> blue_colors;
+        std::vector<Candidate> red_colors;
+        for (unsigned index = 0x48u; index < 0x5cu; ++index) {
+            const auto color = palette_color(
+                palette, static_cast<std::uint8_t>(index));
+            Candidate candidate;
+            candidate.color = color;
+            candidate.red = (color >> 16u) & 0xffu;
+            candidate.green = (color >> 8u) & 0xffu;
+            candidate.blue = color & 0xffu;
+            candidate.brightness = candidate.red + candidate.green +
+                candidate.blue;
+            candidate.red_score = static_cast<int>(candidate.red * 2u) -
+                static_cast<int>(candidate.green + candidate.blue);
+            if (candidate.blue >= candidate.red &&
+                candidate.blue >= candidate.green) {
+                blue_colors.push_back(candidate);
+            }
+            if (candidate.red > candidate.green + 20u &&
+                candidate.red > candidate.blue + 20u) {
+                red_colors.push_back(candidate);
+            }
+        }
+        std::sort(blue_colors.begin(), blue_colors.end(),
+            [](const Candidate& left, const Candidate& right) {
+                return left.brightness < right.brightness;
+            });
+        std::sort(red_colors.begin(), red_colors.end(),
+            [](const Candidate& left, const Candidate& right) {
+                return left.red_score > right.red_score;
+            });
+        const auto blue = [&](std::size_t numerator, std::size_t denominator) {
+            if (blue_colors.empty()) return palette_color(palette, 0x48u);
+            const auto index = std::min(
+                blue_colors.size() - 1u,
+                (blue_colors.size() - 1u) * numerator / denominator);
+            return blue_colors[index].color;
+        };
+        hd_ship_model.outline = blue(0u, 1u);
+        hd_ship_model.dark_blue = blue(1u, 4u);
+        hd_ship_model.middle_blue = blue(1u, 2u);
+        hd_ship_model.light_blue = blue(3u, 4u);
+        hd_ship_model.highlight = blue(1u, 1u);
+        hd_ship_model.engine_red = red_colors.empty()
+            ? palette_color(palette, 0x48u) : red_colors[0].color;
+        hd_ship_model.engine_glow = red_colors.size() < 2u
+            ? hd_ship_model.engine_red : red_colors[1].color;
+        hd_ship_model.shadow = palette_color(
+            palette, hd_ship_shadow_palette_index);
+    }
+
     void present(const std::array<std::uint8_t, kPaletteSize>& palette) {
         active_palette = palette;
         if (palette_trace_enabled && active_palette != palette_trace_previous) {
@@ -1022,14 +1158,21 @@ struct RecoveredGame::Impl {
                 palette_trace.end(), active_palette.begin(), active_palette.end());
             palette_trace_previous = active_palette;
         }
+        const bool map_hd_scene = hd_gameplay_scene_active();
         for (std::size_t pixel = 0; pixel < indexed.size(); ++pixel) {
-            const std::size_t color = indexed[pixel] * 3u;
-            const auto expand = [](std::uint8_t value) -> std::uint32_t {
-                return static_cast<std::uint32_t>((value << 2u) | (value >> 4u));
-            };
-            rgba[pixel] = (expand(palette[color]) << 16u) |
-                (expand(palette[color + 1u]) << 8u) |
-                expand(palette[color + 2u]);
+            rgba[pixel] = palette_color(palette, indexed[pixel]);
+            if (map_hd_scene) {
+                hd_background_rgba[pixel] =
+                    palette_color(palette, gameplay_background[pixel]);
+                hd_road_rgba[pixel] =
+                    palette_color(palette, hd_road_indexed[pixel]);
+            }
+        }
+        if (map_hd_scene) {
+            for (auto& shape : hd_road_shapes) {
+                shape.color = palette_color(palette, shape.palette_index);
+            }
+            map_hd_ship_palette(palette);
         }
         ++presentation_revision;
     }
@@ -1322,12 +1465,14 @@ struct RecoveredGame::Impl {
         unsigned y,
         unsigned width,
         unsigned height,
-        unsigned material,
-        unsigned shape,
+        std::uint16_t cell,
         bool selected) {
-        const auto color = editor_material_color(material);
+        const auto material = static_cast<unsigned>(cell & 0x0fu);
+        const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
+        const auto color = editor_cell_color(cell);
+        const bool has_geometry = editor_cell_has_geometry(cell);
         fill_native_rectangle(indexed, x, y, width, height, 0u);
-        if (material != 0u && width > 2u && height > 2u) {
+        if (has_geometry && width > 2u && height > 2u) {
             fill_native_rectangle(indexed, x + 1u, y + 1u,
                 width - 2u, height - 2u, color);
         }
@@ -1397,7 +1542,7 @@ struct RecoveredGame::Impl {
         }
 
         draw_native_rectangle(indexed, x, y, width, height,
-            selected ? 1u : material == 0u ? 200u : color);
+            selected ? 1u : !has_geometry ? 200u : color);
     }
 
     void render_custom_editor() {
@@ -1430,9 +1575,7 @@ struct RecoveredGame::Impl {
                 for (std::size_t column = 0; column < kCustomRoadColumns; ++column) {
                     const auto x = static_cast<unsigned>(24u + column * 25u);
                     const auto cell = level.cells[row * kCustomRoadColumns + column];
-                    const auto material = static_cast<unsigned>(cell & 0x0fu);
-                    const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
-                    draw_editor_tile(x, y, 23u, 9u, material, shape,
+                    draw_editor_tile(x, y, 23u, 9u, cell,
                         row == custom_editor_row && column == custom_editor_column);
                 }
             }
@@ -1454,13 +1597,14 @@ struct RecoveredGame::Impl {
             const bool selected =
                 custom_editor_brush_material == kEditorMaterials[slot];
             draw_editor_tile(
-                207u, y, 13u, 9u, kEditorMaterials[slot], 0u, selected);
+                207u, y, 13u, 9u, kEditorMaterials[slot], selected);
             draw_native_text(indexed, 224u, y + 1u,
                 fixed_number(slot, 1u) + " " + material_tool_name(slot),
                 selected ? 1u : 3u);
         }
-        draw_editor_tile(207u, 144u, 20u, 9u,
-            custom_editor_brush_material, custom_editor_brush_shape, true);
+        const auto brush_cell = static_cast<std::uint16_t>(
+            (custom_editor_brush_shape << 8u) | custom_editor_brush_material);
+        draw_editor_tile(207u, 144u, 20u, 9u, brush_cell, true);
         draw_native_text(indexed, 232u, 145u,
             "T " + shape_name(custom_editor_brush_shape), 2u);
         draw_native_text(indexed, 207u, 156u,
@@ -1742,6 +1886,12 @@ struct RecoveredGame::Impl {
         if (no_gravity_cheat) gameplay.gravity_step = 0;
         sr_dashboard_state_init(&dashboard_state);
         sr_vga_renderer_state_init(&renderer_state);
+        sr_vga_renderer_state_init(&hd_renderer_state);
+        hd_road_shapes.clear();
+        std::fill(hd_ship_exclusion_mask.begin(),
+            hd_ship_exclusion_mask.end(), std::uint8_t{0});
+        hd_ship_model = {};
+        hd_scene_ready = false;
         indexed = gameplay_background;
         run_level_play_screen = screen;
         sr_run_level_init(&run_level_state, final_unfinished_level);
@@ -1893,6 +2043,94 @@ struct RecoveredGame::Impl {
                     << ", offset=" << renderer_state.failure_offset << ')';
             throw std::runtime_error(message.str());
         }
+        /* Keep the executable-authoritative frame above completely isolated.
+           This second TREK archive/state produces the same visible road spans
+           without the sprite and shadow.  The Win32 presenter can then scale
+           those recovered spans as polygons instead of filtering VGA pixels. */
+        hd_ship_model = {};
+        std::fill(hd_ship_exclusion_mask.begin(),
+            hd_ship_exclusion_mask.end(), std::uint8_t{0});
+        if (params.ship_frame != 0xffffu && params.ship_frame >= 14u &&
+            params.ship_frame < cars.frame_count) {
+            const auto relative_frame = params.ship_frame - 14u;
+            const auto view = relative_frame / 3u;
+            const auto lane = view / 3u;
+            const auto attitude = view % 3u;
+            const auto animation = relative_frame % 3u;
+            const auto base_x = static_cast<double>(params.horizontal_sample) - 110.0;
+            const auto base_y = 157.0 - params.ship_height_units;
+            hd_ship_model.visible = true;
+            hd_ship_model.shadow_visible =
+                params.surface_clearance_units / 5u < SR_SHADOW_FRAME_COUNT;
+            hd_ship_model.center_x = base_x + 14.0;
+            hd_ship_model.center_y = base_y + 12.0;
+            hd_ship_model.shadow_y = base_y + 20.0 +
+                std::min<unsigned>(params.surface_clearance_units, 24u);
+            hd_ship_model.yaw =
+                (static_cast<double>(lane) - 3.0) / 3.0;
+            hd_ship_model.pitch = attitude == 1u ? -1.0 :
+                attitude == 2u ? 1.0 : 0.0;
+            hd_ship_model.engine_pulse = animation / 2.0;
+
+            const auto mark_mask = [&](std::uint16_t offset,
+                                       const std::uint8_t* mask,
+                                       unsigned rows,
+                                       std::array<unsigned, 256>* colors,
+                                       bool mark_ship_visibility) {
+                for (unsigned row = 0; row < rows; ++row) {
+                    for (unsigned column = 0; column < SR_SHIP_MASK_WIDTH;
+                         ++column) {
+                        const auto mask_value =
+                            mask[row * SR_SHIP_MASK_WIDTH + column];
+                        if (mask_value == 0u) continue;
+                        const auto at = static_cast<std::uint16_t>(offset +
+                            row * kScreenWidth + column);
+                        if (at < hd_ship_exclusion_mask.size()) {
+                            if (mark_ship_visibility) {
+                                hd_ship_exclusion_mask[at] |= 0x02u;
+                            }
+                            if (mask_value == 2u) {
+                                hd_ship_exclusion_mask[at] |= 0x01u;
+                            }
+                            if (colors != nullptr && mask_value == 2u) {
+                                ++(*colors)[indexed[at]];
+                            }
+                        }
+                    }
+                }
+            };
+            mark_mask(renderer_state.previous_car_offset,
+                renderer_state.previous_ship_mask, SR_SHIP_IMAGE_HEIGHT,
+                nullptr, true);
+            std::array<unsigned, 256> shadow_colors{};
+            mark_mask(renderer_state.previous_shadow_offset,
+                renderer_state.previous_ship_mask +
+                    SR_SHIP_IMAGE_HEIGHT * SR_SHIP_MASK_WIDTH,
+                SR_SHIP_SHADOW_HEIGHT, &shadow_colors, false);
+            hd_ship_shadow_palette_index = static_cast<std::uint8_t>(
+                std::max_element(shadow_colors.begin(), shadow_colors.end()) -
+                shadow_colors.begin());
+        }
+
+        hd_road_shapes.clear();
+        hd_ship_layer = 0u;
+        hd_renderer_state.geometry_hooks.context = this;
+        hd_renderer_state.geometry_hooks.begin_shape = hd_begin_shape;
+        hd_renderer_state.geometry_hooks.span = hd_shape_span;
+        hd_renderer_state.geometry_hooks.end_shape = hd_end_shape;
+        hd_renderer_state.geometry_hooks.ship_layer = hd_mark_ship_layer;
+        auto hd_params = params;
+        hd_params.ship_frame = 0xffffu;
+        hd_params.ship_frame_byte_offset = 0u;
+        hd_road_indexed = gameplay_background;
+        if (sr_draw_road_scene_vga(
+                &hd_trek, road.cells, road.row_count, &hd_params, &cars,
+                &renderer_tables, &hd_renderer_state, gameplay_background.data(),
+                hd_road_indexed.data()) == 0) {
+            throw std::runtime_error(
+                "Could not decode original VGA road geometry for Hi-Def mode");
+        }
+        hd_scene_ready = true;
         dashboard_input.tick_count = tick_count;
         dashboard_input.forward_speed = gameplay.forward_speed;
         dashboard_input.collision_speed_correction = gameplay.collision_speed_correction;
@@ -2360,6 +2598,10 @@ struct RecoveredGame::Impl {
         }
         const auto key = menu_key(input);
         if (active_screen == NativeScreen::MainMenu && key != 0) {
+            if (key == SR_MENU_KEY_ESCAPE) {
+                quit_requested = true;
+                return;
+            }
             if (key == SR_MENU_KEY_DOWN && main_selection < 3u) {
                 ++main_selection;
                 if (main_selection < SR_MAIN_MENU_ITEM_COUNT) {
@@ -2535,6 +2777,42 @@ std::uint16_t RecoveredGame::selected_input_mode() const {
 
 bool RecoveredGame::high_definition_enabled() const {
     return impl_->high_definition;
+}
+
+bool RecoveredGame::quit_requested() const {
+    return impl_->quit_requested;
+}
+
+bool RecoveredGame::high_definition_scene_available() const {
+    return impl_->hd_gameplay_scene_active();
+}
+
+const std::vector<std::uint32_t>&
+RecoveredGame::high_definition_background_pixels() const {
+    return impl_->hd_background_rgba;
+}
+
+const std::vector<std::uint32_t>&
+RecoveredGame::high_definition_road_pixels() const {
+    return impl_->hd_road_rgba;
+}
+
+const std::vector<RecoveredRoadShape>&
+RecoveredGame::high_definition_road_shapes() const {
+    return impl_->hd_road_shapes;
+}
+
+std::size_t RecoveredGame::high_definition_ship_layer() const {
+    return impl_->hd_ship_layer;
+}
+
+const RecoveredShipModel& RecoveredGame::high_definition_ship_model() const {
+    return impl_->hd_ship_model;
+}
+
+const std::vector<std::uint8_t>&
+RecoveredGame::high_definition_ship_exclusion_mask() const {
+    return impl_->hd_ship_exclusion_mask;
 }
 
 bool RecoveredGame::air_jump_enabled() const {

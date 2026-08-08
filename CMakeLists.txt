@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(skyroads_native VERSION 1.0.1 LANGUAGES C CXX)
+project(skyroads_native VERSION 1.0.2 LANGUAGES C CXX)
 
 if(WIN32)
     enable_language(RC)

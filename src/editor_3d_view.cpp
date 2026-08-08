@@ -129,22 +129,22 @@ void draw_isometric_cell(
     std::vector<std::uint8_t>& framebuffer,
     int center_x,
     int center_y,
-    unsigned material,
-    unsigned shape,
+    std::uint16_t cell,
     bool selected) {
     constexpr int half_width = 7;
     constexpr int half_depth = 4;
+    const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
     const int height = shape_height(shape);
-    const auto color = editor_material_color(material);
+    const auto color = editor_cell_color(cell);
     const auto edge = selected ? kSelectionColor :
-        material == 0u ? kGridColor : color;
+        !editor_cell_has_geometry(cell) ? kGridColor : color;
     const Quad ground{{
         {center_x, center_y - half_depth},
         {center_x + half_width, center_y},
         {center_x, center_y + half_depth},
         {center_x - half_width, center_y},
     }};
-    if (material == 0u) {
+    if (!editor_cell_has_geometry(cell)) {
         outline(framebuffer, ground, edge);
         return;
     }
@@ -214,8 +214,7 @@ void render_isometric(
         const int center_y = 42 + (static_cast<int>(cell.column) +
             static_cast<int>(cell.visible)) * 4;
         draw_isometric_cell(
-            framebuffer, center_x, center_y,
-            value & 0x0fu, (value >> 8u) & 0x0fu,
+            framebuffer, center_x, center_y, value,
             row == selected_row && cell.column == selected_column);
     }
 }
@@ -223,15 +222,15 @@ void render_isometric(
 void draw_straight_cell(
     std::vector<std::uint8_t>& framebuffer,
     const Quad& ground,
-    unsigned material,
-    unsigned shape,
+    std::uint16_t cell,
     int far_height,
     int near_height,
     bool selected) {
-    const auto color = editor_material_color(material);
+    const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
+    const auto color = editor_cell_color(cell);
     const auto edge = selected ? kSelectionColor :
-        material == 0u ? kGridColor : color;
-    if (material == 0u) {
+        !editor_cell_has_geometry(cell) ? kGridColor : color;
+    if (!editor_cell_has_geometry(cell)) {
         outline(framebuffer, ground, edge);
         return;
     }
@@ -296,7 +295,7 @@ void render_straight(
             int near_height = scaled_height;
             if (shape == 3u || shape == 5u) near_height = 0;
             draw_straight_cell(
-                framebuffer, ground, value & 0x0fu, shape,
+                framebuffer, ground, value,
                 far_height, near_height,
                 row == selected_row && column == selected_column);
         }
@@ -334,6 +333,24 @@ std::uint8_t editor_material_color(unsigned material) {
     case 14u: return 143u;
     default: return 2u;
     }
+}
+
+bool editor_cell_has_geometry(std::uint16_t cell) {
+    return (cell & 0x000fu) != 0u || (cell & 0x0f00u) != 0u;
+}
+
+std::uint8_t editor_cell_color(std::uint16_t cell) {
+    const auto material = static_cast<unsigned>(cell & 0x000fu);
+    const auto shape = static_cast<unsigned>((cell >> 8u) & 0x0fu);
+    if (shape == 1u && material == 0u) {
+        return 0x43u;
+    }
+    if (shape >= 2u && shape <= 5u) {
+        const auto descriptor_color = static_cast<std::uint8_t>(
+            (cell >> 4u) & 0x000fu);
+        return descriptor_color == 0u ? 0x3du : descriptor_color;
+    }
+    return editor_material_color(material);
 }
 
 bool render_editor_spatial_view(

@@ -58,15 +58,28 @@ int main() {
         std::vector<std::uint8_t> xmas_art(320u * 200u, 5);
         std::array<std::uint16_t, skyroads::kCombinedLevelCount> completions{};
         completions[30] = 8;
+        completions[31] = 42;
         require(skyroads::render_expanded_level_menu(
                 framebuffer, original_art.data(), xmas_art.data(),
                 completions.data(), completions.size(), 30),
             "Could not render the combined selector");
         require(framebuffer[10u * 320u + 191u] == 1,
             "SkyXmas selection border was not drawn");
-        require(framebuffer[12u * 320u + 231u] == 2 &&
-                framebuffer[12u * 320u + 237u] == 2,
-            "SkyXmas completion markers did not retain the seven-marker cap");
+        require(framebuffer[12u * 320u + 232u] ==
+                    skyroads::kExpandedCompletionTextColor &&
+                framebuffer[12u * 320u + 236u] ==
+                    skyroads::kExpandedCompletionTextColor,
+            "SkyXmas completion count was not a distinct yellow digit eight");
+        require(framebuffer[10u * 320u + 73u] ==
+                    skyroads::kExpandedCompletionTextColor &&
+                framebuffer[10u * 320u + 75u] ==
+                    skyroads::kExpandedCompletionTextColor,
+            "Uncompleted roads did not display a yellow default zero");
+        require(framebuffer[20u * 320u + 232u] ==
+                    skyroads::kExpandedCompletionTextColor &&
+                framebuffer[20u * 320u + 236u] ==
+                    skyroads::kExpandedCompletionTextColor,
+            "Completion counts above nine were not a yellow saturated nine");
         require(framebuffer[10u * 320u + 2u] == 4 &&
                 framebuffer[10u * 320u + 162u] == 5,
             "Original campaign thumbnails were not copied into their columns");

@@ -275,14 +275,11 @@ bool render_expanded_level_menu(
             const unsigned road_y = block * kWorldBlockHeight + 10u + road * 9u;
             draw_text(framebuffer, column * kColumnWidth + 33u, road_y,
                 std::string("ROAD ") + static_cast<char>('1' + road), kRoadText);
-            const unsigned markers = std::min<unsigned>(
-                completion_count[level], SR_LEVEL_COMPLETION_MARKER_LIMIT);
-            for (unsigned marker = 0; marker < markers; ++marker) {
-                const unsigned marker_x = column * kColumnWidth + 71u + marker;
-                for (unsigned py = 0; py < 3u; ++py) {
-                    pixel(framebuffer, marker_x, road_y + 2u + py, kRoadText);
-                }
-            }
+            const char completions = static_cast<char>('0' +
+                std::min<unsigned>(completion_count[level], 9u));
+            draw_text(framebuffer, column * kColumnWidth + 72u, road_y,
+                std::string_view(&completions, 1u),
+                kExpandedCompletionTextColor);
         }
     }
 

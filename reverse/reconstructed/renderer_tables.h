@@ -15,6 +15,18 @@ enum {
     SR_VISIBILITY_HEIGHT_COUNT = 138
 };
 
+/* Optional native presentation observer. The recovered VGA renderer remains
+ * authoritative; these callbacks only report each flat TREK shape in painter
+ * order so a host can rerasterize the same geometry at another resolution. */
+typedef struct SrRoadGeometryHooks {
+    void *context;
+    void (*begin_shape)(void *context, uint8_t color);
+    void (*span)(
+        void *context, int16_t y, int16_t left, int16_t right_exclusive);
+    void (*end_shape)(void *context);
+    void (*ship_layer)(void *context);
+} SrRoadGeometryHooks;
+
 typedef struct SrRendererTables {
     uint16_t visibility_half_widths[SR_VISIBILITY_HEIGHT_COUNT];
     uint8_t shadows[SR_SHADOW_FRAME_COUNT][SR_SHADOW_FRAME_SIZE];
@@ -31,6 +43,7 @@ typedef struct SrVgaRendererState {
     uint16_t previous_shadow_offset;
     uint8_t road_buffer_initialized;
     /* Native diagnostic fields; they do not participate in DOS renderer state. */
+    SrRoadGeometryHooks geometry_hooks;
     uint16_t failure_stage;
     int16_t failure_depth;
     int16_t failure_row;

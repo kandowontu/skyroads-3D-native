@@ -16,6 +16,7 @@ inline constexpr unsigned kXmasLevelCount = 30;
 inline constexpr unsigned kCombinedLevelCount =
     kOriginalLevelCount + kXmasLevelCount;
 inline constexpr unsigned kLevelsPerMenuColumn = 15;
+inline constexpr std::uint8_t kExpandedCompletionTextColor = 0xffu;
 
 struct ExpandedLevelMenuLayout {
     unsigned selector_x{};
@@ -37,7 +38,8 @@ bool expanded_level_menu_layout(
     ExpandedLevelMenuLayout& layout);
 
 /* Port extension: compact four-column 320x200 selector for the two original
-   30-road campaigns. It uses the base GOMENU palette indices. */
+   30-road campaigns. It uses the base GOMENU palette indices and displays a
+   saturated yellow 0-9 completion count beside every road. */
 bool render_expanded_level_menu(
     std::vector<std::uint8_t>& framebuffer,
     const std::uint8_t* original_menu_art,

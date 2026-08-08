@@ -19,6 +19,8 @@ enum class EditorViewMode : std::uint8_t {
 [[nodiscard]] EditorViewMode next_editor_view(EditorViewMode mode);
 [[nodiscard]] std::string_view editor_view_name(EditorViewMode mode);
 [[nodiscard]] std::uint8_t editor_material_color(unsigned material);
+[[nodiscard]] bool editor_cell_has_geometry(std::uint16_t cell);
+[[nodiscard]] std::uint8_t editor_cell_color(std::uint16_t cell);
 
 /* Draws the 15-row editor page into x=0..202, y=31..181.  Top mode is kept
    by the original grid renderer and therefore returns false here. */

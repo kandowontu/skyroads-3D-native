@@ -346,6 +346,38 @@ static int set_shape_color(DrawContext *context, size_t shape, uint8_t color) {
     return 1;
 }
 
+static void report_shape_span(
+    DrawContext *context,
+    int destination,
+    unsigned length,
+    unsigned direction) {
+    int left;
+    int right;
+    if (context->state->geometry_hooks.span == 0 || length == 0) return;
+    if (direction == 0) {
+        left = destination;
+        right = destination + (int)length - 1;
+    }
+    else {
+        left = destination - (int)length + 1;
+        right = destination;
+    }
+    if (right < 0 || left >= SR_VGA_FRAMEBUFFER_SIZE) return;
+    if (left < 0) left = 0;
+    if (right >= SR_VGA_FRAMEBUFFER_SIZE) right = SR_VGA_FRAMEBUFFER_SIZE - 1;
+    while (left <= right) {
+        int y = left / SR_VGA_WIDTH;
+        int row_right = (y + 1) * SR_VGA_WIDTH - 1;
+        int segment_right = right < row_right ? right : row_right;
+        context->state->geometry_hooks.span(
+            context->state->geometry_hooks.context,
+            (int16_t)y,
+            (int16_t)(left % SR_VGA_WIDTH),
+            (int16_t)(segment_right % SR_VGA_WIDTH + 1));
+        left = segment_right + 1;
+    }
+}
+
 static int draw_shape(DrawContext *context, size_t *shape) {
     uint8_t *bytes = context->record->bytes;
     size_t cursor = *shape;
@@ -367,6 +399,10 @@ static int draw_shape(DrawContext *context, size_t *shape) {
     color = color_mapping[color_index * 4u + context->direction];
     base = read_u16(bytes + cursor);
     cursor += 2;
+    if (context->state->geometry_hooks.begin_shape != 0) {
+        context->state->geometry_hooks.begin_shape(
+            context->state->geometry_hooks.context, color);
+    }
     for (;;) {
         uint8_t start;
         uint8_t length;
@@ -381,6 +417,10 @@ static int draw_shape(DrawContext *context, size_t *shape) {
         if (start == 0xffu) {
             /* LODSB consumes the terminator before the DOS primitive returns. */
             *shape = cursor + 1u;
+            if (context->state->geometry_hooks.end_shape != 0) {
+                context->state->geometry_hooks.end_shape(
+                    context->state->geometry_hooks.context);
+            }
             return 1;
         }
         if (cursor + 3u > context->record->size) {
@@ -392,6 +432,8 @@ static int draw_shape(DrawContext *context, size_t *shape) {
         destination = 0x2800 + base;
         if (context->direction == 0) {
             destination -= start;
+            report_shape_span(
+                context, destination, length, context->direction);
             for (pixel = 0; pixel < length; ++pixel) {
                 int at = destination + (int)pixel;
                 if (at >= 0 && at < SR_VGA_FRAMEBUFFER_SIZE) {
@@ -401,6 +443,8 @@ static int draw_shape(DrawContext *context, size_t *shape) {
         }
         else {
             destination = destination - 1 + start;
+            report_shape_span(
+                context, destination, length, context->direction);
             for (pixel = 0; pixel < length; ++pixel) {
                 int at = destination - (int)pixel;
                 if (at >= 0 && at < SR_VGA_FRAMEBUFFER_SIZE) {
@@ -711,6 +755,10 @@ int sr_draw_road_scene_vga(
             if (!draw_depth(&context, 11)) {
                 state->failure_stage = 1;
                 goto failed;
+            }
+            if (state->geometry_hooks.ship_layer != 0) {
+                state->geometry_hooks.ship_layer(
+                    state->geometry_hooks.context);
             }
             if (!draw_car_and_shadow(
                     state->road_buffer, params, cars, tables, state)) {
