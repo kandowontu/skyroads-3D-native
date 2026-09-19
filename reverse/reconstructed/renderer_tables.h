@@ -16,8 +16,9 @@ enum {
 };
 
 /* Optional native presentation observer. The recovered VGA renderer remains
- * authoritative; these callbacks only report each flat TREK shape in painter
- * order so a host can rerasterize the same geometry at another resolution. */
+ * authoritative; these callbacks report each flat TREK shape in painter order
+ * before VGA scanline clipping, so left/right may lie outside 0..320 for a
+ * wider native camera. */
 typedef struct SrRoadGeometryHooks {
     void *context;
     void (*begin_shape)(void *context, uint8_t color);
@@ -25,6 +26,14 @@ typedef struct SrRoadGeometryHooks {
         void *context, int16_t y, int16_t left, int16_t right_exclusive);
     void (*end_shape)(void *context);
     void (*ship_layer)(void *context);
+    int16_t current_row;
+    int16_t current_column;
+    uint16_t current_cell;
+    uint16_t current_pointer_base;
+    uint16_t current_shape_offset;
+    uint8_t current_pointer_relative;
+    uint8_t current_shape_ordinal;
+    uint8_t current_direction;
 } SrRoadGeometryHooks;
 
 typedef struct SrRendererTables {

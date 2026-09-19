@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
             std::size_t editor_white_pixels = 0u;
             std::size_t editor_halo_pixels = 0u;
             for (unsigned y = 182u; y < 200u; ++y) {
-                for (unsigned x = 134u; x < 187u; ++x) {
+                for (unsigned x = 24u; x < 82u; ++x) {
                     const auto pixel = editor_game.indexed_pixels()[y * 320u + x];
                     if (pixel == 0xc0u) ++editor_white_pixels;
                     if (pixel == 0xbfu) ++editor_halo_pixels;
@@ -205,6 +205,123 @@ int main(int argc, char** argv) {
             input = {};
             require(editor_game.screen() == skyroads::NativeScreen::LevelTransition,
                 "A custom creation did not enter the recovered play-test flow");
+        }
+
+        {
+            const auto options_root = root / "build" / "test-options-runtime";
+            std::error_code error;
+            std::filesystem::remove_all(options_root, error);
+            std::filesystem::create_directories(options_root, error);
+            require(!error, "Could not create the isolated Options test folder");
+            std::filesystem::copy_file(
+                root / "skyroads.exe", options_root / "skyroads.exe",
+                std::filesystem::copy_options::overwrite_existing, error);
+            require(!error,
+                "Could not stage the original executable for Options testing");
+            {
+                std::ofstream config(options_root / "SKYROADS.NATIVE.CFG");
+                config << "SKYROADS NATIVE 1\n"
+                       << "high_definition=0\n"
+                       << "display_aspect=0\n";
+            }
+
+            skyroads::RecoveredGame options_game(options_root);
+            skyroads::NativeInput options_input;
+            options_input.enter_pressed = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            for (unsigned item = 0; item < 4u; ++item) {
+                options_input.down = true;
+                options_game.timer_tick(options_input);
+                options_input = {};
+            }
+            options_input.enter_pressed = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            require(options_game.screen() == skyroads::NativeScreen::Options,
+                "OPTIONS did not open from the main menu");
+            options_input.enter_pressed = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            require(options_game.high_definition_enabled(),
+                "OPTIONS did not toggle Hi-Def polygons");
+            options_input.down = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            options_input.right = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            require(options_game.aspect_ratio_mode() ==
+                    skyroads::NativeAspectRatio::Widescreen,
+                "OPTIONS did not select widescreen presentation");
+            options_input.right = true;
+            options_game.timer_tick(options_input);
+            options_input = {};
+            require(options_game.aspect_ratio_mode() ==
+                    skyroads::NativeAspectRatio::UltraWidescreen,
+                "OPTIONS did not select ultra-widescreen presentation");
+            options_input.escape_pressed = true;
+            options_game.timer_tick(options_input);
+            require(options_game.screen() == skyroads::NativeScreen::MainMenu,
+                "OPTIONS Escape did not return to the main menu");
+            std::filesystem::remove_all(options_root, error);
+        }
+
+        {
+            skyroads::RecoveredGame kosmonaut_game(root);
+            input.enter_pressed = true;
+            kosmonaut_game.timer_tick(input);
+            input = {};
+            for (unsigned item = 0; item < 5u; ++item) {
+                input.down = true;
+                kosmonaut_game.timer_tick(input);
+                input = {};
+            }
+            std::size_t label_body = 0u;
+            std::size_t label_halo = 0u;
+            for (unsigned y = 182u; y < 200u; ++y) {
+                for (unsigned x = 220u; x < 315u; ++x) {
+                    const auto pixel = kosmonaut_game.indexed_pixels()[y * 320u + x];
+                    if (pixel == 0xc0u) ++label_body;
+                    if (pixel == 0xbfu) ++label_halo;
+                }
+            }
+            require(label_body > 100u && label_halo > 100u,
+                "Kosmonaut did not use the native main-menu label style");
+            input.enter_pressed = true;
+            kosmonaut_game.timer_tick(input);
+            input = {};
+            require(kosmonaut_game.screen() == skyroads::NativeScreen::Kosmonaut,
+                "Kosmonaut did not open from the main menu");
+            require(kosmonaut_game.indexed_pixels().size() == 320u * 200u,
+                "Kosmonaut did not present its recovered EGA framebuffer");
+            auto initial_kosmonaut_frame =
+                hash_bytes(kosmonaut_game.indexed_pixels());
+            for (unsigned irq = 0; irq < 10u; ++irq) {
+                kosmonaut_game.timer_tick(input);
+                const auto frame = hash_bytes(kosmonaut_game.indexed_pixels());
+                if (frame != initial_kosmonaut_frame) {
+                    initial_kosmonaut_frame = frame;
+                    break;
+                }
+            }
+            for (unsigned irq = 0; irq < 9u; ++irq) {
+                kosmonaut_game.timer_tick(input);
+                require(hash_bytes(kosmonaut_game.indexed_pixels()) ==
+                        initial_kosmonaut_frame,
+                    "Kosmonaut advanced at the too-fast SkyRoads cadence");
+            }
+            kosmonaut_game.timer_tick(input);
+            require(hash_bytes(kosmonaut_game.indexed_pixels()) !=
+                    initial_kosmonaut_frame,
+                "Kosmonaut did not advance at its 386-paced timer step");
+            input.escape_pressed = true;
+            for (unsigned irq = 0; irq < 10u; ++irq) {
+                kosmonaut_game.timer_tick(input);
+                input = {};
+            }
+            require(kosmonaut_game.screen() == skyroads::NativeScreen::MainMenu,
+                "Kosmonaut Escape did not return to the SkyRoads menu");
         }
 
         {

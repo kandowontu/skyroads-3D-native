@@ -41,6 +41,8 @@ typedef struct DrawContext {
     int row;
     int column;
     unsigned direction;
+    unsigned pointer_relative;
+    unsigned shape_ordinal;
     SrVgaRendererState *state;
 } DrawContext;
 
@@ -320,7 +322,7 @@ static int prepare_road_buffer(
     return 1;
 }
 
-static int pointer_at(const DrawContext *context, size_t relative, size_t *value) {
+static int pointer_at(DrawContext *context, size_t relative, size_t *value) {
     size_t offset = context->pointer_base + relative;
     if (offset + 2u > 0x270u || offset + 2u > context->record->size) {
         context->state->failure_detail = 1;
@@ -333,6 +335,8 @@ static int pointer_at(const DrawContext *context, size_t relative, size_t *value
         context->state->failure_offset = (uint32_t)*value;
         return 0;
     }
+    context->pointer_relative = (unsigned)relative;
+    context->shape_ordinal = 0u;
     return 1;
 }
 
@@ -348,34 +352,30 @@ static int set_shape_color(DrawContext *context, size_t shape, uint8_t color) {
 
 static void report_shape_span(
     DrawContext *context,
-    int destination,
+    uint16_t base,
+    uint8_t start,
     unsigned length,
     unsigned direction) {
+    int scanline_origin;
+    int y;
+    int anchor_x;
     int left;
     int right;
     if (context->state->geometry_hooks.span == 0 || length == 0) return;
+    scanline_origin = 0x2800 + (int)base;
+    y = scanline_origin / SR_VGA_WIDTH;
+    anchor_x = scanline_origin % SR_VGA_WIDTH;
     if (direction == 0) {
-        left = destination;
-        right = destination + (int)length - 1;
+        left = anchor_x - (int)start;
+        right = left + (int)length;
     }
     else {
-        left = destination - (int)length + 1;
-        right = destination;
+        right = anchor_x - 1 + (int)start + 1;
+        left = right - (int)length;
     }
-    if (right < 0 || left >= SR_VGA_FRAMEBUFFER_SIZE) return;
-    if (left < 0) left = 0;
-    if (right >= SR_VGA_FRAMEBUFFER_SIZE) right = SR_VGA_FRAMEBUFFER_SIZE - 1;
-    while (left <= right) {
-        int y = left / SR_VGA_WIDTH;
-        int row_right = (y + 1) * SR_VGA_WIDTH - 1;
-        int segment_right = right < row_right ? right : row_right;
-        context->state->geometry_hooks.span(
-            context->state->geometry_hooks.context,
-            (int16_t)y,
-            (int16_t)(left % SR_VGA_WIDTH),
-            (int16_t)(segment_right % SR_VGA_WIDTH + 1));
-        left = segment_right + 1;
-    }
+    context->state->geometry_hooks.span(
+        context->state->geometry_hooks.context,
+        (int16_t)y, (int16_t)left, (int16_t)right);
 }
 
 static int draw_shape(DrawContext *context, size_t *shape) {
@@ -399,6 +399,17 @@ static int draw_shape(DrawContext *context, size_t *shape) {
     color = color_mapping[color_index * 4u + context->direction];
     base = read_u16(bytes + cursor);
     cursor += 2;
+    context->state->geometry_hooks.current_row = (int16_t)context->row;
+    context->state->geometry_hooks.current_column = (int16_t)context->column;
+    context->state->geometry_hooks.current_pointer_base =
+        (uint16_t)context->pointer_base;
+    context->state->geometry_hooks.current_shape_offset = (uint16_t)*shape;
+    context->state->geometry_hooks.current_pointer_relative =
+        (uint8_t)context->pointer_relative;
+    context->state->geometry_hooks.current_shape_ordinal =
+        (uint8_t)context->shape_ordinal;
+    context->state->geometry_hooks.current_direction =
+        (uint8_t)context->direction;
     if (context->state->geometry_hooks.begin_shape != 0) {
         context->state->geometry_hooks.begin_shape(
             context->state->geometry_hooks.context, color);
@@ -421,6 +432,7 @@ static int draw_shape(DrawContext *context, size_t *shape) {
                 context->state->geometry_hooks.end_shape(
                     context->state->geometry_hooks.context);
             }
+            ++context->shape_ordinal;
             return 1;
         }
         if (cursor + 3u > context->record->size) {
@@ -433,7 +445,7 @@ static int draw_shape(DrawContext *context, size_t *shape) {
         if (context->direction == 0) {
             destination -= start;
             report_shape_span(
-                context, destination, length, context->direction);
+                context, base, start, length, context->direction);
             for (pixel = 0; pixel < length; ++pixel) {
                 int at = destination + (int)pixel;
                 if (at >= 0 && at < SR_VGA_FRAMEBUFFER_SIZE) {
@@ -444,7 +456,7 @@ static int draw_shape(DrawContext *context, size_t *shape) {
         else {
             destination = destination - 1 + start;
             report_shape_span(
-                context, destination, length, context->direction);
+                context, base, start, length, context->direction);
             for (pixel = 0; pixel < length; ++pixel) {
                 int at = destination - (int)pixel;
                 if (at >= 0 && at < SR_VGA_FRAMEBUFFER_SIZE) {
@@ -469,6 +481,7 @@ static int skip_shape(DrawContext *context, size_t *shape) {
     } while (context->record->bytes[cursor] != 0xffu);
     /* 31BD increments SI past the terminator. */
     *shape = cursor + 1u;
+    ++context->shape_ordinal;
     return 1;
 }
 
@@ -501,6 +514,8 @@ static int draw_cell(DrawContext *context) {
     size_t shape = 0;
     unsigned count;
     uint8_t color;
+
+    context->state->geometry_hooks.current_cell = cell;
 
     if (type > 5) return 1;
     if (!draw_type_0(context, cell, &shape)) return 0;
@@ -748,6 +763,8 @@ int sr_draw_road_scene_vga(
     context.column = 0;
     context.direction = 0;
     context.pointer_base = 0;
+    context.pointer_relative = 0;
+    context.shape_ordinal = 0;
     context.state = state;
 
     for (depth = 0x0b; depth >= 1; --depth) {

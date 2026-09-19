@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.23)
 
-project(skyroads_native VERSION 1.0.2 LANGUAGES C CXX)
+project(skyroads_native VERSION 1.1.0 LANGUAGES C CXX)
 
 if(WIN32)
     enable_language(RC)
@@ -89,6 +89,49 @@ add_custom_command(
     COMMENT "Embedding original SkyRoads archives into the native binaries"
     VERBATIM)
 
+# Kosmonaut's five EGA screens, 26 road maps, font, palette and control
+# records were extracted from the DOS image once.  The native program embeds
+# only these neutral resources; KOSMO.EXE is neither a build nor runtime input.
+set(KOSMONAUT_ASSET_DIR "${CMAKE_SOURCE_DIR}/extracted/kosmonaut")
+set(KOSMONAUT_ASSET_INPUTS
+    "${KOSMONAUT_ASSET_DIR}/screens.bin"
+    "${KOSMONAUT_ASSET_DIR}/roads.bin"
+    "${KOSMONAUT_ASSET_DIR}/demo-road.bin"
+    "${KOSMONAUT_ASSET_DIR}/tutorial-road.bin"
+    "${KOSMONAUT_ASSET_DIR}/font.bin"
+    "${KOSMONAUT_ASSET_DIR}/font-styles.bin"
+    "${KOSMONAUT_ASSET_DIR}/music.bin"
+    "${KOSMONAUT_ASSET_DIR}/star-motion.bin"
+    "${KOSMONAUT_ASSET_DIR}/star-rng.bin"
+    "${KOSMONAUT_ASSET_DIR}/star-path-pointers.bin"
+    "${KOSMONAUT_ASSET_DIR}/star-paths.bin"
+    "${KOSMONAUT_ASSET_DIR}/level-effects.bin"
+    "${KOSMONAUT_ASSET_DIR}/demo-effects.bin"
+    "${KOSMONAUT_ASSET_DIR}/demo-input.bin"
+    "${KOSMONAUT_ASSET_DIR}/palette.bin"
+    "${KOSMONAUT_ASSET_DIR}/ship-sprites.bin"
+    "${KOSMONAUT_ASSET_DIR}/render-masks.bin"
+    "${KOSMONAUT_ASSET_DIR}/render-pointers.bin"
+    "${KOSMONAUT_ASSET_DIR}/render-shapes.bin"
+    "${KOSMONAUT_ASSET_DIR}/simulation-tables.bin"
+    "${KOSMONAUT_ASSET_DIR}/title-scroll.bin"
+    "${KOSMONAUT_ASSET_DIR}/tutorial-scroll.bin")
+list(APPEND KOSMONAUT_ASSET_INPUTS
+    "${KOSMONAUT_ASSET_DIR}/destruction-frames.bin")
+set(KOSMONAUT_EMBEDDED_DATA_CPP
+    "${CMAKE_BINARY_DIR}/generated/kosmonaut_embedded.cpp")
+add_custom_command(
+    OUTPUT "${KOSMONAUT_EMBEDDED_DATA_CPP}"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/embed_kosmonaut_data.py"
+        --input "${KOSMONAUT_ASSET_DIR}"
+        --output "${KOSMONAUT_EMBEDDED_DATA_CPP}"
+    DEPENDS
+        "${CMAKE_SOURCE_DIR}/tools/embed_kosmonaut_data.py"
+        ${KOSMONAUT_ASSET_INPUTS}
+    COMMENT "Embedding the executable-neutral Kosmonaut reconstruction data"
+    VERBATIM)
+
 include(FetchContent)
 set(OPAL_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(opal
@@ -108,10 +151,14 @@ add_subdirectory(reverse/reconstructed)
 
 add_library(skyroads_port_core
     "${SKYROADS_EMBEDDED_DATA_CPP}"
+    "${KOSMONAUT_EMBEDDED_DATA_CPP}"
     src/custom_levels.cpp
     src/editor_3d_view.cpp
     src/expanded_level_menu.cpp
     src/hd_renderer.cpp
+    src/controller_input.cpp
+    src/wide_road_mesh.cpp
+    src/kosmonaut_game.cpp
     src/recovered_game.cpp)
 target_include_directories(skyroads_port_core PUBLIC src)
 target_link_libraries(skyroads_port_core PUBLIC skyroads_recovered)
@@ -162,6 +209,9 @@ add_executable(skyroads_snapshot src/snapshot_main.cpp)
 target_link_libraries(skyroads_snapshot PRIVATE skyroads_port_core)
 
 enable_testing()
+add_executable(skyroads_controller_tests tests/controller_input_tests.cpp)
+target_link_libraries(skyroads_controller_tests PRIVATE skyroads_port_core)
+add_test(NAME skyroads_xinput_controller COMMAND skyroads_controller_tests "${CMAKE_SOURCE_DIR}")
 add_executable(skyroads_tests tests/data_tests.cpp)
 target_link_libraries(skyroads_tests PRIVATE skyroads_port_core)
 add_test(NAME skyroads_recovered_integration COMMAND skyroads_tests
@@ -215,6 +265,10 @@ else()
     add_test(NAME skyroads_embedded_data COMMAND skyroads_embedded_data_tests
         "${SKYROADS_BASE_EXE}")
 endif()
+
+add_executable(skyroads_kosmonaut_tests tests/kosmonaut_tests.cpp)
+target_link_libraries(skyroads_kosmonaut_tests PRIVATE skyroads_port_core)
+add_test(NAME skyroads_native_kosmonaut COMMAND skyroads_kosmonaut_tests)
 
 set(SKYROADS_DOS_FRAME_ORACLE
     "${CMAKE_SOURCE_DIR}/reverse/generated/oracle-run/ORAFRAME.BIN"

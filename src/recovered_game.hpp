@@ -24,6 +24,7 @@ struct NativeInput {
     bool up{};
     bool down{};
     bool jump{};
+    bool gamepad_active{};
     bool enter_pressed{};
     bool escape_pressed{};
     bool joystick_connected{};
@@ -48,6 +49,9 @@ struct NativeInput {
     bool editor_page_down_pressed{};
     bool editor_mouse_pressed{};
     bool editor_view_pressed{};
+    bool kosmonaut_demo_pressed{};
+    bool backspace_pressed{};
+    std::uint8_t text_character{};
     std::int8_t editor_material_shortcut{-1};
     bool cheat_air_jump_pressed{};
     bool cheat_refill_pressed{};
@@ -59,6 +63,7 @@ enum class NativeScreen {
     Intro,
     MainMenu,
     Settings,
+    Options,
     Help,
     LevelSelection,
     CustomLevelBrowser,
@@ -66,13 +71,21 @@ enum class NativeScreen {
     LevelTransition,
     Playing,
     Demo,
-    LevelResult
+    LevelResult,
+    Kosmonaut
+};
+
+enum class NativeAspectRatio : std::uint8_t {
+    Original,
+    Widescreen,
+    UltraWidescreen
 };
 
 struct PcmEffect {
     unsigned effect{};
     std::uint32_t sample_rate{};
     std::vector<std::uint8_t> samples;
+    bool loop{};
 };
 
 struct OplRegisterWrite {
@@ -104,6 +117,7 @@ public:
     [[nodiscard]] std::uint16_t last_ship_frame() const;
     [[nodiscard]] std::uint16_t selected_input_mode() const;
     [[nodiscard]] bool high_definition_enabled() const;
+    [[nodiscard]] NativeAspectRatio aspect_ratio_mode() const;
     [[nodiscard]] bool quit_requested() const;
     [[nodiscard]] bool high_definition_scene_available() const;
     [[nodiscard]] const std::vector<std::uint32_t>&
@@ -113,6 +127,7 @@ public:
     [[nodiscard]] const std::vector<RecoveredRoadShape>&
         high_definition_road_shapes() const;
     [[nodiscard]] std::size_t high_definition_ship_layer() const;
+    [[nodiscard]] const WideRoadScene& wide_road_scene() const;
     [[nodiscard]] const RecoveredShipModel& high_definition_ship_model() const;
     [[nodiscard]] const std::vector<std::uint8_t>&
         high_definition_ship_exclusion_mask() const;

@@ -24,6 +24,22 @@ surviving historical sources:
 - [BlueMoon team archive](http://www.bluemoon.ee/team/index.html)
 - [SkyRoads DOS credits at MobyGames](https://www.mobygames.com/game/1007/skyroads/credits/dos/)
 
+## Original Kosmonaut
+
+Kosmonaut is the earlier TIW/BlueMoon design from which SkyRoads evolved. Its
+original DOS title screen identifies the game as `SKYROADS`; this port labels
+the mode `KOSMONAUT` so the two games remain unambiguous in one executable.
+
+- Copyright: TIW Systems, Inc. (1990)
+- Programming: Jaan Tallinn, Ahti Heinla, and Priit Kasesalu
+- Graphics: Kaspar P. Loit
+- Music: Jüri Tallinn
+
+These are transcribed from the recovered original title screen. The original
+programming, artwork, level design, and game design remain attributable to
+their original authors and rights holders. No original-game credit is claimed
+by this native reconstruction.
+
 ## SkyRoads Native
 
 - Project direction, reverse-engineering review, and native port: kandowontu

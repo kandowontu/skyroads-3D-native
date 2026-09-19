@@ -1,0 +1,169 @@
+{
+  "source": "KOSMO_UNPACKED.EXE",
+  "source_sha256": "6d91a0a34c71fc771398603b6f489b7dbb3e6923900d6b6011f36030cb627111",
+  "screens": [
+    "road-select",
+    "gameplay",
+    "tutorial",
+    "title",
+    "completed"
+  ],
+  "screen_width": 320,
+  "screen_height": 200,
+  "road_count": 26,
+  "road_columns": 6,
+  "road_rows": 200,
+  "road_bytes": 1200,
+  "palette_registers": [
+    0,
+    18,
+    21,
+    17,
+    5,
+    6,
+    4,
+    20,
+    23,
+    1,
+    22,
+    2,
+    19,
+    7,
+    3,
+    16
+  ],
+  "files": {
+    "completed.png": {
+      "bytes": 12485,
+      "sha256": "ba0e48368477629840967f09e815b4f764eb8e6f4edcbb18db3e2c023ee74980"
+    },
+    "completed.ppm": {
+      "bytes": 192015,
+      "sha256": "2f85ac6dd134e0cd43f338bc175718c6406a80d4c28e35e809b493083f1d6f51"
+    },
+    "demo-effects.bin": {
+      "bytes": 50,
+      "sha256": "7e110fa98ad756d8f3f88b5998d5d216a77c6295e0568ca9edf3a1a49c6b9281"
+    },
+    "demo-input.bin": {
+      "bytes": 753,
+      "sha256": "66e3660d1abf4dedbda2aa551c3e9c2647150cbc814a039c0dd5b5cbecadeba7"
+    },
+    "demo-road.bin": {
+      "bytes": 1200,
+      "sha256": "aaec1f1a4d9f320f19944695254af426667cac6eda3bd6cd0c5a7f7119451745"
+    },
+    "destruction-frames.bin": {
+      "bytes": 68,
+      "sha256": "7f7b6571bd5c9f3d6a9293ba3d493f349ae13e24f4e125407bc0aa6f6a2e3b85"
+    },
+    "font-styles.bin": {
+      "bytes": 40,
+      "sha256": "fbd7cf32a221a7dda37e52fda9d9ebbcb3c2b1d5a61184029b2610abc26f2f3f"
+    },
+    "font.bin": {
+      "bytes": 696,
+      "sha256": "edec9a07d3da9800f05fecee3ba9ad370b80209096ab9d4d9c05a7d63c098660"
+    },
+    "gameplay.png": {
+      "bytes": 5302,
+      "sha256": "2069ad36127853f5cb6ff9b13f5e86136702933b0f9a908cdcb72b1975f7a342"
+    },
+    "gameplay.ppm": {
+      "bytes": 192015,
+      "sha256": "6448e75c3c38d7a988c0f19724077fdf4bbe60fad8e0efb71c042991f4a5d67e"
+    },
+    "level-effects.bin": {
+      "bytes": 1300,
+      "sha256": "208351acc874a563e0b8e726f3e13a1042d116449a96a668ec36abad89657b24"
+    },
+    "music.bin": {
+      "bytes": 4492,
+      "sha256": "7e47178088a120e58ef39072431c5c40665fe4f57d29609c884d469e8e76914b"
+    },
+    "palette.bin": {
+      "bytes": 16,
+      "sha256": "105165d1b0cbfdf92a18b0ba25a247e34ecde7ef8e272b1d4c6bb30e80ca6ca6"
+    },
+    "render-masks.bin": {
+      "bytes": 512,
+      "sha256": "260bc253b264bccc18e1cb27cb9bdeea1e853fcee47ef073ed94204eff55a71c"
+    },
+    "render-pointers.bin": {
+      "bytes": 792,
+      "sha256": "5e6884a8859b7c8351f68d911c7f91d1e50f3533a896152a1836deead270e5fc"
+    },
+    "render-shapes.bin": {
+      "bytes": 31035,
+      "sha256": "1dc9b92557f7c1dc0b91f163c29fcc13414ac29191ed5c8c937323b233e6e6ab"
+    },
+    "road-select.png": {
+      "bytes": 4665,
+      "sha256": "95ac02cdd5393360a1259ac52d0c8c4d3b4d582bd6233b96b60bbfc83a5c0ef4"
+    },
+    "road-select.ppm": {
+      "bytes": 192015,
+      "sha256": "1cb23b6edc725b78448128951202903f2a42010ee251059b0d8aecc8ed89b07f"
+    },
+    "roads.bin": {
+      "bytes": 31200,
+      "sha256": "0aee7e144a55edfe7db2b9a70aaea39951bac48d5d3486adac68d85e548f4ec6"
+    },
+    "screens.bin": {
+      "bytes": 320000,
+      "sha256": "5400b25a0968a9a8025491cfab134230ce6f26a3f8479b8a58637c9aa12fd70f"
+    },
+    "ship-sprites.bin": {
+      "bytes": 22932,
+      "sha256": "df011992a6154f05310370e1c05cc44a8539b2823a1ba996cef52bca7c7d1639"
+    },
+    "simulation-tables.bin": {
+      "bytes": 176,
+      "sha256": "fb0329e177c4716a55353099080e63283b5336d4daf13b8aaf0ea0766a1b9d0a"
+    },
+    "star-motion.bin": {
+      "bytes": 16,
+      "sha256": "db55d7b8c4f5d302e79174b734a2e673ee51adafd601df009de6064713886d8f"
+    },
+    "star-path-pointers.bin": {
+      "bytes": 110,
+      "sha256": "875b546b2620849d43ed5cb8906d78941fd612935944b436c9099ebac3cb8242"
+    },
+    "star-paths.bin": {
+      "bytes": 2286,
+      "sha256": "c083f54160f00abe1d731d16de82e7b91a6e2e9230ffeb24ee087db73fc96997"
+    },
+    "star-rng.bin": {
+      "bytes": 32,
+      "sha256": "a3eb16ac5943d0e8591ae19676d11f5ae2cc8086ffecc011442181fc646d5035"
+    },
+    "title-scroll.bin": {
+      "bytes": 29,
+      "sha256": "02deacd6b1a753e979a1892570734bc7554de8438b2f307949ae72d38d17d2f1"
+    },
+    "title.png": {
+      "bytes": 1742,
+      "sha256": "fc3148952db7643db084b6f5a9df379c1fff5b140ca9c4e86674712faee56fb4"
+    },
+    "title.ppm": {
+      "bytes": 192015,
+      "sha256": "c24db9012dfe7ac485ae846c7f8bb4816a876fb922b3702068c1cc4be766b4e6"
+    },
+    "tutorial-road.bin": {
+      "bytes": 1200,
+      "sha256": "36bc680b9e2ff852c0ee9e0f825b13634fbaa08d6d883637ca69018584527012"
+    },
+    "tutorial-scroll.bin": {
+      "bytes": 124,
+      "sha256": "8acfd2424593d9008de35a8e3fdfc027bd0970f936835ae472687046194cd248"
+    },
+    "tutorial.png": {
+      "bytes": 8388,
+      "sha256": "38e828d0cd6c9c999c6f2b8c21d5f4caa1160322d27e002436b79bd98272f195"
+    },
+    "tutorial.ppm": {
+      "bytes": 192015,
+      "sha256": "d1a2667763f6e240134ba8db0e2e0e79ff4098f115411fc76b356595497b473c"
+    }
+  }
+}

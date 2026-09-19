@@ -65,6 +65,8 @@ std::array<std::uint8_t, 7> glyph(char character) {
     case '8': return {14,17,17,14,17,17,14};
     case '9': return {14,17,17,15,1,1,14};
     case '-': return {0,0,0,31,0,0,0};
+    case ':': return {0,4,4,0,4,4,0};
+    case '/': return {1,2,2,4,8,8,16};
     default: return {};
     }
 }
@@ -75,17 +77,25 @@ void pixel(std::vector<std::uint8_t>& framebuffer,
 }
 
 void draw_text(std::vector<std::uint8_t>& framebuffer,
-    unsigned x, unsigned y, std::string_view text, std::uint8_t color) {
+    unsigned x, unsigned y, std::string_view text, std::uint8_t color,
+    unsigned scale = 1u) {
+    scale = std::max(1u, scale);
     for (const char character : text) {
         const auto rows = glyph(character);
         for (unsigned row = 0; row < rows.size(); ++row) {
             for (unsigned column = 0; column < 5; ++column) {
                 if ((rows[row] & (1u << (4u - column))) != 0) {
-                    pixel(framebuffer, x + column, y + row, color);
+                    for (unsigned pixel_y = 0; pixel_y < scale; ++pixel_y) {
+                        for (unsigned pixel_x = 0; pixel_x < scale; ++pixel_x) {
+                            pixel(framebuffer,
+                                x + column * scale + pixel_x,
+                                y + row * scale + pixel_y, color);
+                        }
+                    }
                 }
             }
         }
-        x += 6;
+        x += 6u * scale;
     }
 }
 
@@ -132,6 +142,16 @@ void draw_native_text(
     std::string_view text,
     std::uint8_t color) {
     draw_text(framebuffer, x, y, text, color);
+}
+
+void draw_native_text_scaled(
+    std::vector<std::uint8_t>& framebuffer,
+    unsigned x,
+    unsigned y,
+    std::string_view text,
+    std::uint8_t color,
+    unsigned scale) {
+    draw_text(framebuffer, x, y, text, color, scale);
 }
 
 void draw_native_rectangle(

@@ -1,6 +1,7 @@
 #include "recovered_game.hpp"
 #include "hd_renderer.hpp"
 #include "win32_opl_audio.hpp"
+#include "win32_xinput.hpp"
 
 #include <windows.h>
 #include <mmsystem.h>
@@ -13,11 +14,13 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
 
 using skyroads::NativeInput;
+using skyroads::NativeAspectRatio;
 using skyroads::NativeScreen;
 using skyroads::RecoveredGame;
 
@@ -76,7 +79,102 @@ struct WindowBackBuffer {
 };
 
 WindowBackBuffer g_back_buffer;
+skyroads::XInputController g_controller;
+skyroads::ControllerInput g_controller_input;
 std::vector<std::uint32_t> g_hd_pixels;
+std::vector<std::uint32_t> g_presentation_pixels;
+std::vector<std::uint8_t> g_classic_ship_mask;
+NativeAspectRatio g_applied_aspect{NativeAspectRatio::Original};
+
+struct PresentationLayout {
+    int x{};
+    int y{};
+    int width{};
+    int height{};
+    int content_x{};
+    int content_width{};
+};
+
+std::pair<int, int> aspect_fraction(NativeAspectRatio aspect) {
+    switch (aspect) {
+    case NativeAspectRatio::Widescreen: return {16, 9};
+    case NativeAspectRatio::UltraWidescreen: return {21, 9};
+    default: return {8, 5};
+    }
+}
+
+PresentationLayout presentation_layout(int client_width, int client_height) {
+    const auto aspect = g_game
+        ? g_game->aspect_ratio_mode() : NativeAspectRatio::Original;
+    const auto [numerator, denominator] = aspect_fraction(aspect);
+    PresentationLayout layout;
+    layout.width = std::max(1, client_width);
+    layout.height = std::max(
+        1, layout.width * denominator / numerator);
+    if (layout.height > client_height) {
+        layout.height = std::max(1, client_height);
+        layout.width = std::max(
+            1, layout.height * numerator / denominator);
+    }
+    layout.x = (client_width - layout.width) / 2;
+    layout.y = (client_height - layout.height) / 2;
+    layout.content_width = std::min(layout.width,
+        std::max(1, layout.height * skyroads::kScreenWidth /
+            skyroads::kScreenHeight));
+    layout.content_x = layout.x + (layout.width - layout.content_width) / 2;
+    return layout;
+}
+
+void compose_presentation(
+    const std::uint32_t* source,
+    unsigned source_width,
+    unsigned source_height,
+    const PresentationLayout& layout) {
+    const auto width = static_cast<unsigned>(layout.width);
+    const auto height = static_cast<unsigned>(layout.height);
+    const auto content_width = static_cast<unsigned>(layout.content_width);
+    const auto side_width = (width - content_width) / 2u;
+    g_presentation_pixels.assign(
+        static_cast<std::size_t>(width) * height, 0u);
+    for (unsigned y = 0; y < height; ++y) {
+        const unsigned source_y = std::min(source_height - 1u,
+            static_cast<unsigned>(
+                static_cast<std::uint64_t>(y) * source_height / height));
+        const auto source_row = static_cast<std::size_t>(source_y) * source_width;
+        const auto destination_row = static_cast<std::size_t>(y) * width;
+        for (unsigned x = 0; x < content_width; ++x) {
+            const auto source_x = std::min(source_width - 1u,
+                static_cast<unsigned>(
+                    static_cast<std::uint64_t>(x) * source_width /
+                    content_width));
+            g_presentation_pixels[destination_row + side_width + x] =
+                source[source_row + source_x];
+        }
+    }
+}
+
+void apply_changed_window_aspect() {
+    if (!g_window || !g_game || g_fullscreen || IsZoomed(g_window)) return;
+    const auto aspect = g_game->aspect_ratio_mode();
+    if (aspect == g_applied_aspect) return;
+    g_applied_aspect = aspect;
+    RECT client{};
+    if (!GetClientRect(g_window, &client)) return;
+    const auto [numerator, denominator] = aspect_fraction(aspect);
+    const int client_height = std::max(1L, client.bottom - client.top);
+    RECT window_rect{0, 0,
+        client_height * numerator / denominator, client_height};
+    const auto style = static_cast<DWORD>(
+        GetWindowLongPtrW(g_window, GWL_STYLE));
+    const auto ex_style = static_cast<DWORD>(
+        GetWindowLongPtrW(g_window, GWL_EXSTYLE));
+    if (AdjustWindowRectEx(&window_rect, style, FALSE, ex_style)) {
+        SetWindowPos(g_window, nullptr, 0, 0,
+            window_rect.right - window_rect.left,
+            window_rect.bottom - window_rect.top,
+            SWP_NOMOVE | SWP_NOOWNERZORDER | SWP_NOZORDER);
+    }
+}
 
 void toggle_fullscreen(HWND window) {
     if (!g_fullscreen) {
@@ -156,23 +254,26 @@ std::filesystem::path locate_data_root() {
 
 NativeInput collect_input() {
     NativeInput input;
+    const bool kosmonaut = g_game &&
+        g_game->screen() == NativeScreen::Kosmonaut;
     const bool playing = g_game &&
         (g_game->screen() == NativeScreen::Playing ||
          g_game->screen() == NativeScreen::Demo ||
-         g_game->screen() == NativeScreen::LevelResult);
+         g_game->screen() == NativeScreen::LevelResult ||
+         g_game->screen() == NativeScreen::Kosmonaut);
     const auto key = [playing](unsigned value) {
         return playing ? g_held[value] : g_pressed[value];
     };
-    input.left = key(VK_LEFT) || key('A') || key(VK_NUMPAD4) ||
+    input.left = key(VK_LEFT) || (!kosmonaut && key('A')) || key(VK_NUMPAD4) ||
         key(VK_NUMPAD7) || key(VK_NUMPAD1);
-    input.right = key(VK_RIGHT) || key('D') || key(VK_NUMPAD6) ||
+    input.right = key(VK_RIGHT) || (!kosmonaut && key('D')) || key(VK_NUMPAD6) ||
         key(VK_NUMPAD9) || key(VK_NUMPAD3);
-    input.up = key(VK_UP) || key('W') || key(VK_NUMPAD8) ||
+    input.up = key(VK_UP) || (!kosmonaut && key('W')) || key(VK_NUMPAD8) ||
         key(VK_NUMPAD7) || key(VK_NUMPAD9);
-    input.down = key(VK_DOWN) || key('S') || key(VK_NUMPAD2) ||
+    input.down = key(VK_DOWN) || (!kosmonaut && key('S')) || key(VK_NUMPAD2) ||
         key(VK_NUMPAD1) || key(VK_NUMPAD3);
     input.jump = g_held[VK_SPACE];
-    input.enter_pressed = g_pressed[VK_RETURN] || g_pressed[VK_SPACE];
+    input.enter_pressed = g_pressed[VK_RETURN];
     input.escape_pressed = g_pressed[VK_ESCAPE];
     input.editor_space_pressed = g_pressed[VK_SPACE];
     input.editor_shape_pressed = g_pressed['T'];
@@ -188,6 +289,17 @@ NativeInput collect_input() {
     input.editor_page_down_pressed = g_pressed[VK_NEXT];
     input.editor_mouse_pressed = g_pressed[VK_LBUTTON];
     input.editor_view_pressed = g_pressed['V'];
+    input.kosmonaut_demo_pressed = g_pressed['D'];
+    input.backspace_pressed = g_pressed[VK_BACK];
+    for (unsigned value = 'A'; value <= 'Z'; ++value) {
+        if (g_pressed[value]) input.text_character = static_cast<std::uint8_t>(value);
+    }
+    for (unsigned value = '0'; value <= '9'; ++value) {
+        if (g_pressed[value]) input.text_character = static_cast<std::uint8_t>(value);
+    }
+    if (g_pressed[VK_OEM_COMMA]) input.text_character = ',';
+    if (g_pressed[VK_OEM_PERIOD]) input.text_character = '.';
+    if (g_pressed[VK_SPACE]) input.text_character = ' ';
     for (std::int8_t slot = 0; slot < 10; ++slot) {
         const auto key = static_cast<unsigned>('0' + slot);
         if (g_pressed[key]) input.editor_material_shortcut = slot;
@@ -199,10 +311,14 @@ NativeInput collect_input() {
     input.cheat_no_gravity_pressed = control_held && g_pressed[VK_F10];
     input.cheat_overdrive_pressed = control_held && g_pressed[VK_F9];
 
+    const auto pad = GetForegroundWindow()==g_window
+        ? g_controller.poll(GetTickCount64()) : skyroads::ControllerSample{};
+    g_controller_input.merge(pad,g_game->screen(),GetTickCount64(),input);
+
     JOYINFOEX joystick{};
     joystick.dwSize = sizeof(joystick);
     joystick.dwFlags = JOY_RETURNX | JOY_RETURNY | JOY_RETURNBUTTONS;
-    if (joyGetPosEx(JOYSTICKID1, &joystick) == JOYERR_NOERROR) {
+    if (!pad.connected && joyGetPosEx(JOYSTICKID1, &joystick) == JOYERR_NOERROR) {
         JOYCAPSW capabilities{};
         input.joystick_connected = true;
         if (joyGetDevCapsW(
@@ -229,20 +345,15 @@ NativeInput collect_input() {
             GetClientRect(g_window, &client)) {
             const int client_width = std::max(1L, client.right - client.left);
             const int client_height = std::max(1L, client.bottom - client.top);
-            int width = client_width;
-            int height = width * skyroads::kScreenHeight / skyroads::kScreenWidth;
-            if (height > client_height) {
-                height = client_height;
-                width = height * skyroads::kScreenWidth / skyroads::kScreenHeight;
-            }
-            const int x = (client_width - width) / 2;
-            const int y = (client_height - height) / 2;
+            const auto layout = presentation_layout(client_width, client_height);
             input.mouse_available = true;
             input.mouse_x = static_cast<std::uint16_t>(std::clamp<int>(
-                (cursor.x - x) * skyroads::kScreenWidth / std::max(1, width),
+                (cursor.x - layout.content_x) * skyroads::kScreenWidth /
+                    std::max(1, layout.content_width),
                 0, skyroads::kScreenWidth - 1));
             input.mouse_y = static_cast<std::uint16_t>(std::clamp<int>(
-                (cursor.y - y) * skyroads::kScreenHeight / std::max(1, height),
+                (cursor.y - layout.y) * skyroads::kScreenHeight /
+                    std::max(1, layout.height),
                 0, skyroads::kScreenHeight - 1));
             input.mouse_button = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
         }
@@ -273,34 +384,52 @@ void paint(HWND window) {
         EndPaint(window, &paint);
         return;
     }
-    int width = client_width;
-    int height = width * skyroads::kScreenHeight / skyroads::kScreenWidth;
-    if (height > client_height) {
-        height = client_height;
-        width = height * skyroads::kScreenWidth / skyroads::kScreenHeight;
-    }
-    const int x = (client_width - width) / 2;
-    const int y = (client_height - height) / 2;
+    const auto layout = presentation_layout(client_width, client_height);
 
     unsigned bitmap_width = skyroads::kScreenWidth;
     unsigned bitmap_height = skyroads::kScreenHeight;
     const std::uint32_t* bitmap_pixels = g_game->pixels().data();
-    if (g_game->high_definition_enabled() &&
-        g_game->high_definition_scene_available()) {
+    const bool geometry_available =
+        g_game->high_definition_scene_available();
+    const bool expanded_view =
+        g_game->aspect_ratio_mode() != NativeAspectRatio::Original;
+    if (geometry_available &&
+        (g_game->high_definition_enabled() || expanded_view)) {
+        const bool high_definition = g_game->high_definition_enabled();
+        const unsigned render_height = high_definition
+            ? static_cast<unsigned>(layout.height) : skyroads::kScreenHeight;
+        const unsigned render_width = high_definition
+            ? static_cast<unsigned>(layout.width)
+            : static_cast<unsigned>((
+                static_cast<std::int64_t>(layout.width) * render_height +
+                layout.height / 2) / layout.height);
+        const skyroads::RecoveredShipModel classic_ship{};
+        if (!high_definition) {
+            g_classic_ship_mask.assign(
+                static_cast<std::size_t>(skyroads::kScreenWidth) *
+                    skyroads::kScreenHeight, 0u);
+        }
         skyroads::render_recovered_road_polygons(
             g_game->high_definition_background_pixels(),
             g_game->high_definition_road_pixels(), g_game->pixels(),
             g_game->high_definition_road_shapes(),
             g_game->high_definition_ship_layer(),
-            g_game->high_definition_ship_model(),
-            g_game->high_definition_ship_exclusion_mask(),
+            high_definition ? g_game->high_definition_ship_model() : classic_ship,
+            high_definition ? g_game->high_definition_ship_exclusion_mask()
+                            : g_classic_ship_mask,
             nullptr, nullptr, 1.0,
             skyroads::kScreenWidth, skyroads::kScreenHeight,
-            static_cast<unsigned>(width), static_cast<unsigned>(height),
-            g_hd_pixels);
-        bitmap_width = static_cast<unsigned>(width);
-        bitmap_height = static_cast<unsigned>(height);
+            render_width, render_height, g_hd_pixels,
+            expanded_view ? &g_game->wide_road_scene() : nullptr);
+        bitmap_width = render_width;
+        bitmap_height = render_height;
         bitmap_pixels = g_hd_pixels.data();
+    }
+    else {
+        compose_presentation(bitmap_pixels, bitmap_width, bitmap_height, layout);
+        bitmap_width = static_cast<unsigned>(layout.width);
+        bitmap_height = static_cast<unsigned>(layout.height);
+        bitmap_pixels = g_presentation_pixels.data();
     }
 
     BITMAPINFO bitmap{};
@@ -316,7 +445,7 @@ void paint(HWND window) {
     }
     FillRect(target, &client, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
     SetStretchBltMode(target, COLORONCOLOR);
-    StretchDIBits(target, x, y, width, height, 0, 0,
+    StretchDIBits(target, layout.x, layout.y, layout.width, layout.height, 0, 0,
         static_cast<int>(bitmap_width), static_cast<int>(bitmap_height),
         bitmap_pixels, &bitmap, DIB_RGB_COLORS, SRCCOPY);
     if (target != dc) {
@@ -392,6 +521,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command) {
     try {
         g_data_root = locate_data_root();
         g_game = std::make_unique<RecoveredGame>(g_data_root);
+        g_applied_aspect = g_game->aspect_ratio_mode();
         skyroads::Win32OplAudio opl_audio;
         const auto initial_opl_writes = g_game->consume_opl_writes();
         opl_audio.write_registers(initial_opl_writes);
@@ -407,12 +537,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command) {
         window_class.lpszClassName = class_name;
         if (!RegisterClassExW(&window_class)) throw std::runtime_error("Unable to register the window class");
 
-        RECT rectangle{0, 0, 960, 600};
+        const auto [initial_numerator, initial_denominator] =
+            aspect_fraction(g_game->aspect_ratio_mode());
+        RECT rectangle{0, 0,
+            600 * initial_numerator / initial_denominator, 600};
         constexpr DWORD style = WS_OVERLAPPEDWINDOW;
         AdjustWindowRect(&rectangle, style, FALSE);
         const wchar_t* window_title = g_game->has_xmas_levels()
-            ? L"SkyRoads + SkyRoads Xmas Native - Executable Reconstruction"
-            : L"SkyRoads Native - Executable Reconstruction";
+            ? L"SkyRoads + SkyRoads Xmas + Kosmonaut Native"
+            : L"SkyRoads + Kosmonaut Native";
         HWND window = CreateWindowExW(
             0, class_name, window_title, style,
             CW_USEDEFAULT, CW_USEDEFAULT, rectangle.right - rectangle.left, rectangle.bottom - rectangle.top,
@@ -462,6 +595,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command) {
                 updated = true;
             }
             if (updated) {
+                apply_changed_window_aspect();
                 const auto revision = g_game->presentation_revision();
                 if (revision != invalidated_revision) {
                     invalidated_revision = revision;

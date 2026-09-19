@@ -12,7 +12,9 @@ int main(int argc, char** argv) {
             argc > 1 ? std::filesystem::path(argv[1])
                      : std::filesystem::current_path());
         const auto output = argc > 2 ? std::filesystem::path(argv[2]) : std::filesystem::path("snapshot.ppm");
-        const auto view = argc > 3 ? std::string(argv[3]) : std::string("game");
+        const auto requested_view = argc > 3 ? std::string(argv[3]) : std::string("game");
+        const bool xmas_game_view = requested_view.starts_with("xmas-game");
+        const auto view = xmas_game_view ? requested_view.substr(5) : requested_view;
         const bool original_last_editor =
             view == "original-editor-10-3" ||
             view == "original-editor-10-3-iso-left" ||
@@ -23,7 +25,7 @@ int main(int argc, char** argv) {
         const bool editor_view = view == "editor" || view == "editor-iso-left" ||
             view == "editor-straight" || view == "editor-iso-right" ||
             view == "original-editor" || original_last_editor;
-        const bool xmas_view = view == "xmas-levels" || view == "xmas-game" ||
+        const bool xmas_view = view == "xmas-levels" || xmas_game_view ||
             view == "creations" || editor_view || view == "custom-game" ||
             original_levels_view;
         skyroads::RecoveredGame game(root);
@@ -33,12 +35,69 @@ int main(int argc, char** argv) {
             game.timer_tick(input); // any key skips the recovered intro to the menu
             input = {};
         }
-        if (view == "main-controls" || view == "main-editor") {
-            const unsigned steps = view == "main-editor" ? 3u : 1u;
+        if (view == "main-controls" || view == "main-editor" ||
+            view == "main-options" || view == "options" ||
+            view == "options-wide" || view == "options-ultrawide" ||
+            view == "settings-hd" ||
+            view == "main-kosmonaut" || view == "kosmonaut-title" ||
+            view == "kosmonaut-select" || view == "kosmonaut-game") {
+            const unsigned steps = view == "main-editor" ? 3u :
+                view == "main-controls" ? 1u :
+                (view == "main-options" || view == "options" ||
+                 view == "options-wide" || view == "options-ultrawide" ||
+                 view == "settings-hd") ? 4u : 5u;
             for (unsigned step = 0; step < steps; ++step) {
                 input.down = true;
                 game.timer_tick(input);
                 input = {};
+            }
+            if (view == "options" || view == "options-wide" ||
+                view == "options-ultrawide" || view == "settings-hd") {
+                input.enter_pressed = true;
+                game.timer_tick(input);
+                input = {};
+                if (view == "settings-hd") {
+                    input.enter_pressed = true;
+                    game.timer_tick(input);
+                    input = {};
+                }
+                if (view == "options-wide" || view == "options-ultrawide") {
+                    input.down = true;
+                    game.timer_tick(input);
+                    input = {};
+                    input.right = true;
+                    game.timer_tick(input);
+                    input = {};
+                    if (view == "options-ultrawide") {
+                        input.right = true;
+                        game.timer_tick(input);
+                        input = {};
+                    }
+                }
+            }
+            else if (view == "kosmonaut-title" || view == "kosmonaut-select" ||
+                view == "kosmonaut-game") {
+                const auto press_kosmonaut_enter = [&]() {
+                    input.enter_pressed = true;
+                    for (int irq = 0; irq < 10; ++irq) {
+                        game.timer_tick(input);
+                        input = {};
+                    }
+                };
+                press_kosmonaut_enter(); // combined menu -> Kosmonaut title
+                if (view == "kosmonaut-select" || view == "kosmonaut-game") {
+                    press_kosmonaut_enter(); // title -> original tutorial
+                    press_kosmonaut_enter(); // tutorial -> high-score road selector
+                }
+                if (view == "kosmonaut-game") {
+                    press_kosmonaut_enter(); // selector -> road
+                    for (int irq = 0; irq < 240; ++irq) {
+                        input.up = true;
+                        input.right = irq > 110 && irq < 145;
+                        input.jump = irq > 175 && irq < 185;
+                        game.timer_tick(input);
+                    }
+                }
             }
         }
         else if (view == "creations" || editor_view ||
@@ -90,7 +149,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        else if (view == "settings" || view == "settings-hd" || view == "help") {
+        else if (view == "settings" || view == "help") {
             input.down = true;
             game.timer_tick(input);
             if (view == "help") game.timer_tick(input);
@@ -99,17 +158,6 @@ int main(int argc, char** argv) {
             game.timer_tick(input);
             input = {};
             for (int irq = 0; irq < 370; ++irq) game.timer_tick(input);
-            if (view == "settings-hd") {
-                input.down = true;
-                game.timer_tick(input); // keyboard -> sound on
-                input = {};
-                input.down = true;
-                game.timer_tick(input); // sound on -> hi-def
-                input = {};
-                input.enter_pressed = true;
-                game.timer_tick(input); // enable hi-def
-                input = {};
-            }
         }
         else if (view != "main" && view != "intro" && view != "demo") {
             input.enter_pressed = true;
@@ -145,7 +193,10 @@ int main(int argc, char** argv) {
                 input = {};
             }
         }
-        if (view == "game" || view == "game-hd" || view == "xmas-game") {
+        if (view == "game" || view == "game-wide" ||
+            view == "game-ultrawide" || view == "game-hd" ||
+            view == "game-hd-wide" || view == "game-hd-ultrawide" ||
+            view == "xmas-game") {
             input.enter_pressed = true;
             game.timer_tick(input); // level selection -> road 1
             input = {};
@@ -165,24 +216,41 @@ int main(int argc, char** argv) {
             for (int irq = 0; irq < irqs; ++irq) game.timer_tick(input);
         }
 
+
+
         unsigned output_width = skyroads::kScreenWidth;
         unsigned output_height = skyroads::kScreenHeight;
         const std::vector<std::uint32_t>* output_pixels = &game.pixels();
         std::vector<std::uint32_t> hd_pixels;
-        if ((view == "game-hd" || view == "demo-hd") &&
+        if ((view == "game-wide" || view == "game-ultrawide" ||
+             view == "game-hd" || view == "game-hd-wide" ||
+             view == "game-hd-ultrawide" || view == "demo-hd") &&
             game.high_definition_scene_available()) {
-            output_width = 960u;
-            output_height = 600u;
+            const bool classic_wide = view == "game-wide" ||
+                view == "game-ultrawide";
+            output_width = view == "game-wide" ? 356u :
+                view == "game-ultrawide" ? 467u :
+                view == "game-hd-wide" ? 1067u :
+                view == "game-hd-ultrawide" ? 1400u : 960u;
+            output_height = classic_wide ? 200u : 600u;
+            const skyroads::RecoveredShipModel classic_ship{};
+            std::vector<std::uint8_t> classic_ship_mask(
+                static_cast<std::size_t>(skyroads::kScreenWidth) *
+                skyroads::kScreenHeight, 0u);
             skyroads::render_recovered_road_polygons(
                 game.high_definition_background_pixels(),
                 game.high_definition_road_pixels(), game.pixels(),
                 game.high_definition_road_shapes(),
                 game.high_definition_ship_layer(),
-                game.high_definition_ship_model(),
-                game.high_definition_ship_exclusion_mask(),
+                classic_wide ? classic_ship : game.high_definition_ship_model(),
+                classic_wide ? classic_ship_mask
+                             : game.high_definition_ship_exclusion_mask(),
                 nullptr, nullptr, 1.0,
                 skyroads::kScreenWidth, skyroads::kScreenHeight,
-                output_width, output_height, hd_pixels);
+                output_width, output_height, hd_pixels,
+                (view == "game-wide" || view == "game-ultrawide" ||
+                 view == "game-hd-wide" || view == "game-hd-ultrawide")
+                    ? &game.wide_road_scene() : nullptr);
             output_pixels = &hd_pixels;
         }
 

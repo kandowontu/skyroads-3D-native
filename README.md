@@ -16,22 +16,33 @@ old approximate gameplay and perspective renderer are no longer on the active
 path. The host also streams the recovered OPL register schedule through a
 native OPL2 synthesizer.
 
-## SkyRoads Native 1.0.2
+The same executable also contains a native reconstruction of Kosmonaut, the
+earlier six-lane cockpit game that led to SkyRoads. Choose `KOSMONAUT` on the
+original-style title menu to enter its recovered title, road selector, and
+complete 26-road campaign. Its five EGA screens, 98 original ship frames,
+custom font and scanline color styles, palette, road maps, animated-road
+records, moving-star paths, PC-speaker scores, span-renderer tables, and demo
+controls are embedded as neutral data;
+the port never needs or runs `KOSMO.EXE`. See the
+[Kosmonaut reconstruction notes](reverse/kosmonaut/README.md).
+
+## SkyRoads Native 1.1.0
 
 The first stable release combines the executable-authoritative DOS simulation
 with optional native enhancements: both 30-road campaigns in one selector,
 smooth high-definition presentation, recovered OPL2 audio, a visual road
 editor, spatial editor views, and optional in-level shortcuts. See the complete
-[1.0.2 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
-Version 1.0.2 includes the self-contained runtime fix introduced in 1.0.1 and
-adds true recovered-geometry Hi-Def polygons, a polygon player craft, fullscreen
-support, visible completion counts, and editor/import corrections.
+[1.1.0 release notes](RELEASE_NOTES.md) and [editor manual](EDITOR_README.md).
+Version 1.1.0 adds automatic Xbox/XInput controller support, the native
+Kosmonaut campaign, an Options menu, and complete mesh-based widescreen and
+ultra-widescreen rendering for SkyRoads and Xmas. The Windows executable
+remains self-contained.
 
 ## Original game requirement
 
-This repository does not include the copyrighted DOS executable, artwork,
-levels, music, or sound data. Release builds embed the compressed game archives
-but deliberately omit the DOS executable. To run the port, place
+This repository does not include either DOS executable. Release builds embed
+the recovered game resources but deliberately omit executable code from both
+original programs. To run the combined port, place
 `skyroads_native.exe` beside a legally obtained original copy of either:
 
 - `SKYROADS.EXE`, or
@@ -54,6 +65,28 @@ required at runtime, and the compiler, C++, threading, and synthesis runtimes
 are linked into the release executable. Users do not need to install Visual C++,
 MinGW, or any other support library. Startup stops with an explanatory message
 when neither original executable is present.
+
+Kosmonaut itself has no ownership-file or data-file requirement. The existing
+`SKYROADS.EXE`/`SKYXMAS.EXE` check remains the combined application's SkyRoads
+ownership check; no `KOSMO.EXE` is accepted or requested by it.
+
+## Built-in Kosmonaut campaign
+
+Choose `KOSMONAUT` on the lower row of the main menu. The recovered Kosmonaut
+title uses the original controls: `Space`/`Enter` advances to the tutorial and
+road selector, arrows choose among unlocked roads, `Space` starts, `P` pauses,
+`S` toggles sound, and `Escape` backs out. During the tutorial, `D` starts the
+original recorded demonstration. Progress uses the original obfuscated
+`HISCORES.SKY` layout beside the native game.
+
+Kosmonaut begins with roads 1 and 2 available and unlocks the next road after
+a successful run, through all 26 executable-resident maps. The cockpit,
+tutorial art, road-selection craft, title logo, completion portrait, 16-color
+EGA palette, position-indexed demo, custom glyphs, road flashing, fuel/oxygen,
+jump-power, speed, hazards, gaps, raised blocks, moving starfield, and both
+original PC-speaker songs all come from the recovered DOS layout. Unlike
+SkyRoads mode, Kosmonaut does not offer Hi-Def rendering;
+its native view intentionally preserves its original EGA presentation.
 
 Building from source still requires legally obtained SkyRoads archives so CMake
 can generate the embedded-data translation unit. Point the cache variables at
@@ -135,8 +168,8 @@ The count is bright yellow so it remains distinct from numeric road names.
 
 ## Built-in custom road editor
 
-Choose `EDITOR` below the original three main-menu entries to open the creation
-browser. It scans `custom_levels/*.srlevel`, lists every saved creation with
+Choose `EDITOR` on the lower row of the main menu to open the creation browser.
+It scans `custom_levels/*.srlevel`, lists every saved creation with
 paging, and includes the new `SKYBRIDGE RUN` and `NEBULA SLALOM` demo roads.
 The `ORIGINAL LEVELS` folder contains editable copies of all 30 decoded base-game
 roads, named `1-1` through `10-3`. Missing copies are imported from the embedded
@@ -162,19 +195,48 @@ and play-testing instructions are in [EDITOR_README.md](EDITOR_README.md).
 
 ## Native display and shortcut extensions
 
-The original Settings screen includes a sixth `HI DEF` control. When enabled,
-the recovered TREK renderer reports every individual road, wall, ramp, and
-tunnel face in its original painter order. The host rerasterizes those faces as
-smooth high-resolution polygons and presents each completed geometry frame
+Choose `OPTIONS` on the authentic-styled lower main-menu row to configure the
+native display extensions. `HI-DEF POLYGONS` makes the recovered TREK renderer
+report every individual road, wall, ramp, and tunnel face in its original
+painter order. The host rerasterizes those faces as smooth high-resolution
+polygons and presents each completed geometry frame
 atomically through a double buffer. The player craft is replaced by a palette-
 matched polygon model clipped by the recovered road-visibility mask, so
 foreground tunnels occlude it correctly. World artwork and dashboard graphics
 remain pixel-authentic rather than filtered. The verified 320x200 indexed frame
-and fixed-point simulation remain unchanged underneath. The option is stored
-in `SKYROADS.NATIVE.CFG` beside the game.
+and fixed-point simulation remain unchanged underneath.
+
+The `DISPLAY MODE` row offers the undistorted original 8:5 presentation,
+16:9 widescreen, and 21:9 ultra-widescreen. SkyRoads and Xmas wider gameplay
+modes build complete meshes for the road, tile edges, low/high blocks, arches,
+and tunnel openings from the level cells. The original TREK tables calibrate
+depth; complete faces are clipped against the expanded camera frustum before
+perspective division and depth-tested, including the player. The cockpit is
+composited over the scene using its own silhouette. Hi-Def renders the expanded
+field at the window resolution; classic mode keeps the original 200-line style
+and recovered sprite, including outside the old viewport. Background and
+cockpit artwork remain bitmaps. Fixed-size menu artwork remains centered rather than
+inventing interface art. Both display choices are stored in
+`SKYROADS.NATIVE.CFG`. The original Controls screen is again reserved for the
+five original input and sound settings.
 
 Press `Alt+Enter` to switch between the resizable window and borderless
 fullscreen on the current monitor. Press `Escape` on the main menu to quit.
+
+Xbox-compatible XInput controllers are detected automatically, including when
+connected after launch. No Controls setting or additional library installation
+is required. The first connected controller is used; disconnected controllers
+are checked once per second. Input is accepted only while the game is focused.
+
+| Context | Controller controls |
+| --- | --- |
+| Menus | D-pad/left stick: navigate; A/Start: confirm; B/Back: return |
+| SkyRoads / Xmas | D-pad/left stick: steer, accelerate (up), brake (down); A: jump; B/Back/Start: leave road |
+| Kosmonaut | D-pad/left stick: drive; A: jump/confirm; Start: pause/resume; B/Back: return |
+| Editor | D-pad/left stick: cursor; A: paint; X: play-test; Y: shape; Start: save; LB/RB: page; left-stick click: view; B/Back: return |
+
+The left stick has a dead zone to prevent drift, and menu directions repeat
+after a short hold. Keyboard controls remain available alongside the pad.
 
 During a level, the following native shortcuts are available:
 

@@ -23,6 +23,62 @@ struct SmoothSpan {
     double right{};
 };
 
+struct Projection {
+    double x_scale{};
+    double y_scale{};
+    double x_offset{};
+};
+
+Projection centered_projection(
+    unsigned source_width,
+    unsigned source_height,
+    unsigned destination_width,
+    unsigned destination_height) {
+    const auto scale =
+        static_cast<double>(destination_height) / source_height;
+    return {scale, scale,
+        (static_cast<double>(destination_width) - source_width * scale) * 0.5};
+}
+
+unsigned panoramic_background_x(
+    unsigned destination_x,
+    unsigned source_width,
+    unsigned destination_width,
+    const Projection& projection) {
+    const auto projected_width = source_width * projection.x_scale;
+    if (std::abs(projected_width - destination_width) < 0.5) {
+        return std::min(source_width - 1u,
+            static_cast<unsigned>((destination_x + 0.5) /
+                projection.x_scale));
+    }
+
+    /* Preserve the central half of the original artwork at the recovered
+       vertical scale and distribute the extra width through its peripheral
+       quarters.  This behaves like a panoramic lens: centered planets and
+       dashboard instruments stay proportioned, with no repeated seams. */
+    const double source_left = source_width * 0.25;
+    const double source_right = source_width * 0.75;
+    const double destination_center = destination_width * 0.5;
+    const double destination_left =
+        destination_center - (source_width * 0.25) * projection.x_scale;
+    const double destination_right =
+        destination_center + (source_width * 0.25) * projection.x_scale;
+    const double sample_x = destination_x < destination_left
+        ? source_left * (destination_x + 0.5) /
+            std::max(1.0, destination_left)
+        : destination_x + 0.5 < destination_right
+            ? source_left +
+                (destination_x + 0.5 - destination_left) /
+                    projection.x_scale
+            : source_right + (source_width - source_right) *
+                (destination_x + 0.5 - destination_right) /
+                std::max(1.0,
+                    static_cast<double>(destination_width) - destination_right);
+    return std::min(source_width - 1u,
+        static_cast<unsigned>(std::clamp(
+            sample_x, 0.0, static_cast<double>(source_width - 1u))));
+}
+
 void validate_frame(
     const std::vector<std::uint32_t>& frame,
     std::size_t expected_size,
@@ -119,31 +175,31 @@ void draw_shape(
     const RecoveredRoadShape* previous,
     double interpolation) {
     if (current.spans.empty()) return;
-    const auto y_scale =
-        static_cast<double>(destination_height) / source_height;
-    const auto x_scale =
-        static_cast<double>(destination_width) / source_width;
+    const auto projection = centered_projection(
+        source_width, source_height, destination_width, destination_height);
     const auto first = smooth_span(current, previous, 0u, interpolation);
     const auto last = smooth_span(
         current, previous, current.spans.size() - 1u, interpolation);
     const auto destination_top = std::clamp(
-        static_cast<int>(std::floor((first.y - 0.5) * y_scale)),
+        static_cast<int>(std::floor((first.y - 0.5) * projection.y_scale)),
         0, static_cast<int>(destination_height));
     const auto destination_bottom = std::clamp(
-        static_cast<int>(std::ceil((last.y + 1.5) * y_scale)),
+        static_cast<int>(std::ceil((last.y + 1.5) * projection.y_scale)),
         0, static_cast<int>(destination_height));
     for (int y = destination_top; y < destination_bottom; ++y) {
         const auto source_y =
-            (static_cast<double>(y) + 0.5) / y_scale - 0.5;
+            (static_cast<double>(y) + 0.5) / projection.y_scale - 0.5;
         double left{};
         double right{};
         if (!sample_shape(
                 current, previous, interpolation, source_y, left, right)) continue;
         const auto destination_left = std::clamp(
-            static_cast<int>(std::floor(left * x_scale)),
+            static_cast<int>(std::floor(
+                projection.x_offset + left * projection.x_scale)),
             0, static_cast<int>(destination_width));
         const auto destination_right = std::clamp(
-            static_cast<int>(std::ceil(right * x_scale)),
+            static_cast<int>(std::ceil(
+                projection.x_offset + right * projection.x_scale)),
             0, static_cast<int>(destination_width));
         const auto row = static_cast<std::size_t>(y) * destination_width;
         for (int x = destination_left; x < destination_right; ++x) {
@@ -164,14 +220,13 @@ void fill_polygon(
     if (source_points.size() < 3u) return;
     std::vector<Point> points;
     points.reserve(source_points.size());
-    const auto x_scale =
-        static_cast<double>(destination_width) / source_width;
-    const auto y_scale =
-        static_cast<double>(destination_height) / source_height;
+    const auto projection = centered_projection(
+        source_width, source_height, destination_width, destination_height);
     double top = static_cast<double>(destination_height);
     double bottom = 0.0;
     for (const auto& point : source_points) {
-        points.push_back({point.x * x_scale, point.y * y_scale});
+        points.push_back({projection.x_offset + point.x * projection.x_scale,
+            point.y * projection.y_scale});
         top = std::min(top, points.back().y);
         bottom = std::max(bottom, points.back().y);
     }
@@ -206,15 +261,18 @@ void fill_polygon(
             const auto row = static_cast<std::size_t>(y) * destination_width;
             for (int x = left; x < right; ++x) {
                 if (visibility_mask != nullptr) {
+                    const auto projected_x =
+                        (static_cast<double>(x) + 0.5 - projection.x_offset) /
+                        projection.x_scale;
+                    if (projected_x < 0.0 || projected_x >= source_width) {
+                        continue;
+                    }
                     const auto source_x = std::min(
-                        static_cast<unsigned>(
-                            static_cast<std::uint64_t>(x) * source_width /
-                            destination_width),
-                        source_width - 1u);
+                        static_cast<unsigned>(projected_x), source_width - 1u);
                     const auto source_y = std::min(
                         static_cast<unsigned>(
-                            static_cast<std::uint64_t>(y) * source_height /
-                            destination_height),
+                            (static_cast<double>(y) + 0.5) /
+                            projection.y_scale),
                         source_height - 1u);
                     if (((*visibility_mask)[
                             static_cast<std::size_t>(source_y) * source_width +
@@ -277,7 +335,8 @@ void draw_ship_model(
     if (ship.shadow_visible) {
         fill_polygon(destination, source_width, source_height,
             destination_width, destination_height,
-            ellipse(ship.center_x, ship.shadow_y, 12.0, 2.4, 28u), ship.shadow);
+            ellipse(ship.center_x, ship.shadow_y, 12.0, 2.4, 28u), ship.shadow,
+            visibility_mask);
     }
 
     const auto transform = [&ship](double x, double y) -> Point {
@@ -352,6 +411,75 @@ void draw_ship_model(
         visibility_mask);
 }
 
+// Clip in camera space before perspective division. Faces crossing z=0 must
+// become smaller polygons; rejecting a whole cell causes visible popping.
+template<class Distance>
+std::vector<RoadVertex> clip_face(const std::vector<RoadVertex>& input,
+                                Distance distance) {
+    std::vector<RoadVertex> output;
+    if (input.empty()) return output;
+    auto previous = input.back();
+    double pd = distance(previous);
+    for (const auto& current : input) {
+        const double cd = distance(current);
+        if ((pd >= 0) != (cd >= 0)) {
+            const double t = pd / (pd - cd);
+            output.push_back({mix(previous.x,current.x,t),
+                mix(previous.y,current.y,t),mix(previous.z,current.z,t)});
+        }
+        if (cd >= 0) output.push_back(current);
+        previous = current;
+        pd = cd;
+    }
+    return output;
+}
+
+void draw_mesh(const WideRoadScene& scene, unsigned width, unsigned height,
+    const Projection& projection, std::vector<std::uint32_t>& pixels,
+    std::vector<double>& inverse_depth) {
+    const double scale = projection.x_scale;
+    const double cx = width * .5, cy = 32 * scale;
+    inverse_depth.assign(pixels.size(), 0.0);
+    struct Projected { double x,y,q; };
+    for (const auto& face : scene.faces) {
+        auto polygon = clip_face(face.vertices,
+            [](RoadVertex v){return v.z - 0.0005;});
+        polygon = clip_face(polygon,[&](RoadVertex v){return v.x*scale+cx*v.z;});
+        polygon = clip_face(polygon,[&](RoadVertex v){return (width-cx)*v.z-v.x*scale;});
+        polygon = clip_face(polygon,[&](RoadVertex v){return v.y*scale+cy*v.z;});
+        polygon = clip_face(polygon,[&](RoadVertex v){return (height-cy)*v.z-v.y*scale;});
+        if (polygon.size()<3) continue;
+        std::vector<Projected> points;
+        for (auto v : polygon) points.push_back({cx+v.x*scale/v.z,
+            cy+v.y*scale/v.z,1.0/v.z});
+        const auto edge=[](Projected a,Projected b,double x,double y){
+            return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);
+        };
+        for (std::size_t i=1;i+1<points.size();++i) {
+            auto a=points[0],b=points[i],c=points[i+1];
+            double area=edge(a,b,c.x,c.y);
+            if (std::abs(area)<1e-9) continue;
+            if (area<0) {std::swap(b,c);area=-area;}
+            const int x0=std::max(0,static_cast<int>(std::floor(std::min({a.x,b.x,c.x}))));
+            const int x1=std::min(static_cast<int>(width),static_cast<int>(std::ceil(std::max({a.x,b.x,c.x}))));
+            const int y0=std::max(0,static_cast<int>(std::floor(std::min({a.y,b.y,c.y}))));
+            const int y1=std::min(static_cast<int>(height),static_cast<int>(std::ceil(std::max({a.y,b.y,c.y}))));
+            for(int y=y0;y<y1;++y) for(int x=x0;x<x1;++x) {
+                const double wa=edge(b,c,x+.5,y+.5)/area;
+                const double wb=edge(c,a,x+.5,y+.5)/area;
+                const double wc=1-wa-wb;
+                if (wa < -1e-9 || wb < -1e-9 || wc < -1e-9) continue;
+                const double q=wa*a.q+wb*b.q+wc*c.q;
+                const auto at=static_cast<std::size_t>(y)*width+x;
+                if(q > inverse_depth[at]+1e-8) {
+                    inverse_depth[at]=q;
+                    pixels[at]=face.color;
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
 void render_recovered_road_polygons(
@@ -369,7 +497,8 @@ void render_recovered_road_polygons(
     unsigned source_height,
     unsigned destination_width,
     unsigned destination_height,
-    std::vector<std::uint32_t>& destination) {
+    std::vector<std::uint32_t>& destination,
+    const WideRoadScene* wide_scene) {
     if (source_width == 0u || source_height == 0u ||
         destination_width == 0u || destination_height == 0u) {
         throw std::invalid_argument("Invalid recovered-polygon dimensions");
@@ -385,32 +514,65 @@ void render_recovered_road_polygons(
     const auto has_ship_visibility = std::any_of(
         ship_exclusion_mask.begin(), ship_exclusion_mask.end(),
         [](std::uint8_t value) { return (value & 0x02u) != 0u; });
-    const auto* ship_visibility_mask = has_ship_visibility
+    const auto* ship_visibility_mask =
+        (has_ship_visibility || ship.visibility_mask_required)
         ? &ship_exclusion_mask : nullptr;
     interpolation = std::clamp(interpolation, 0.0, 1.0);
     destination.resize(
         static_cast<std::size_t>(destination_width) * destination_height);
+    const auto projection = centered_projection(
+        source_width, source_height, destination_width, destination_height);
 
     for (unsigned y = 0; y < destination_height; ++y) {
         const auto source_y = std::min(
             static_cast<unsigned>(
-                static_cast<std::uint64_t>(y) * source_height /
-                destination_height),
+                (static_cast<double>(y) + 0.5) / projection.y_scale),
             source_height - 1u);
         for (unsigned x = 0; x < destination_width; ++x) {
-            const auto source_x = std::min(
-                static_cast<unsigned>(
-                    static_cast<std::uint64_t>(x) * source_width /
-                    destination_width),
-                source_width - 1u);
+            const auto background_x = panoramic_background_x(
+                x, source_width, destination_width, projection);
             destination[static_cast<std::size_t>(y) * destination_width + x] =
                 background[static_cast<std::size_t>(source_y) * source_width +
-                    source_x];
+                    background_x];
         }
     }
 
+    std::vector<double> mesh_depth;
+    if (wide_scene != nullptr) {
+        draw_mesh(*wide_scene, destination_width, destination_height,
+            projection, destination, mesh_depth);
+        // Ship polygons share the road's depth test, including when falling
+        // below the tile tops. Their screen position remains physics-derived.
+        std::vector<std::uint32_t> ship_pixels(destination.size(),0xffffffffu);
+        draw_ship_model(ship_pixels,source_width,source_height,
+            destination_width,destination_height,ship,previous_ship,
+            interpolation,nullptr);
+        for(std::size_t at=0;at<destination.size();++at) {
+            if(ship_pixels[at]!=0xffffffffu &&
+               mesh_depth[at] <= 1.0/wide_scene->ship_depth + .01) {
+                destination[at]=ship_pixels[at];
+            }
+        }
+        if(!ship.visible && wide_scene->ship_indices.size()==29u*24u &&
+            wide_scene->ship_colors.size()==29u*24u) {
+            for(unsigned y=0;y<destination_height;++y) {
+                const int sy=static_cast<int>(std::floor((y+.5)/projection.y_scale))-
+                    wide_scene->ship_y;
+                if(sy<0 || sy>=24) continue;
+                for(unsigned x=0;x<destination_width;++x) {
+                    const int sx=static_cast<int>(std::floor(
+                        (x+.5-projection.x_offset)/projection.x_scale))-wide_scene->ship_x;
+                    if(sx<0 || sx>=29) continue;
+                    const auto at=static_cast<std::size_t>(y)*destination_width+x;
+                    if(wide_scene->ship_indices[sy*29+sx] &&
+                        mesh_depth[at]<=1.0/wide_scene->ship_depth+.01)
+                        destination[at]=wide_scene->ship_colors[sy*29+sx];
+                }
+            }
+        }
+    }
     const auto layer = std::min(ship_layer, road_shapes.size());
-    for (std::size_t shape = 0; shape <= road_shapes.size(); ++shape) {
+    for (std::size_t shape = 0; wide_scene == nullptr && shape <= road_shapes.size(); ++shape) {
         if (shape == layer) {
             draw_ship_model(destination, source_width, source_height,
                 destination_width, destination_height, ship, previous_ship,
@@ -430,19 +592,32 @@ void render_recovered_road_polygons(
     for (unsigned y = 0; y < destination_height; ++y) {
         const auto source_y = std::min(
             static_cast<unsigned>(
-                static_cast<std::uint64_t>(y) * source_height /
-                destination_height),
+                (static_cast<double>(y) + 0.5) / projection.y_scale),
             source_height - 1u);
         for (unsigned x = 0; x < destination_width; ++x) {
+            const auto destination_at=static_cast<std::size_t>(y)*destination_width+x;
+            if (wide_scene && wide_scene->cockpit_mask.size()==source_size) {
+                const auto hud_x=panoramic_background_x(x,source_width,
+                    destination_width,projection);
+                const auto hud_at=static_cast<std::size_t>(source_y)*source_width+hud_x;
+                if(wide_scene->cockpit_mask[hud_at]!=0) {
+                    destination[destination_at]=complete_frame[hud_at];
+                    continue;
+                }
+            }
+            const auto projected_x =
+                (static_cast<double>(x) + 0.5 - projection.x_offset) /
+                projection.x_scale;
+            if (projected_x < 0.0 || projected_x >= source_width) continue;
             const auto source_x = std::min(
-                static_cast<unsigned>(
-                    static_cast<std::uint64_t>(x) * source_width /
-                    destination_width),
+                static_cast<unsigned>(projected_x),
                 source_width - 1u);
             const auto source_at =
                 static_cast<std::size_t>(source_y) * source_width + source_x;
             if ((ship_exclusion_mask[source_at] & 0x01u) == 0u &&
                 complete_frame[source_at] != road_without_ship[source_at]) {
+                if(wide_scene && source_y>=32 && source_y<138 &&
+                    mesh_depth[destination_at] > 1.0/wide_scene->ship_depth+.01) continue;
                 destination[static_cast<std::size_t>(y) * destination_width + x] =
                     complete_frame[source_at];
             }

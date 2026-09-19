@@ -57,6 +57,13 @@ void draw_native_text(
     unsigned y,
     std::string_view text,
     std::uint8_t color);
+void draw_native_text_scaled(
+    std::vector<std::uint8_t>& framebuffer,
+    unsigned x,
+    unsigned y,
+    std::string_view text,
+    std::uint8_t color,
+    unsigned scale);
 void draw_native_rectangle(
     std::vector<std::uint8_t>& framebuffer,
     unsigned x,

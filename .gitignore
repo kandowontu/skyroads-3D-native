@@ -1,8 +1,25 @@
 # Generated reverse-engineering output
 extracted/
+!extracted/
+extracted/*
+!extracted/kosmonaut/
+extracted/kosmonaut/*
+!extracted/kosmonaut/*.bin
+!extracted/kosmonaut/manifest.json
 reverse/generated/
 reverse/ghidra-projects/
 reverse/tools/fontdump.conf
+reverse/kosmonaut/original/
+reverse/kosmonaut/ghidra-project/
+reverse/kosmonaut/ghidra-projects/
+reverse/kosmonaut/captures/
+reverse/kosmonaut/native-captures/
+reverse/kosmonaut/oracle/
+reverse/kosmonaut/capture.conf
+reverse/kosmonaut/*.conf
+reverse/kosmonaut/ghidra_layout*.txt
+reverse/kosmonaut/ghidra.log
+reverse/kosmonaut/ghidra_decompiled.c
 
 # Native build output
 build/
@@ -16,7 +33,9 @@ out/
 *.exe
 *.com
 *.cfg
+*.lnk
 readme.txt
+dosbox-x.conf
 
 # Runtime-generated editor copies of the decoded original campaign roads
 custom_levels/ORIGINAL LEVELS/

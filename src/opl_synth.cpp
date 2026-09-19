@@ -63,16 +63,22 @@ void PcmEffectMixer::mix(
         const auto source_index = static_cast<std::size_t>(
             source_phase_ / kOplOutputRate);
         if (source_index >= effect_.samples.size()) {
-            effect_ = {};
-            source_phase_ = 0;
-            break;
+            if (!effect_.loop) {
+                effect_ = {};
+                source_phase_ = 0;
+                break;
+            }
+            source_phase_ %= static_cast<std::uint64_t>(
+                effect_.samples.size()) * kOplOutputRate;
         }
-
-        const auto next_index = std::min(
-            source_index + 1u, effect_.samples.size() - 1u);
+        const auto wrapped_source_index = static_cast<std::size_t>(
+            source_phase_ / kOplOutputRate);
+        const auto next_index = effect_.loop
+            ? (wrapped_source_index + 1u) % effect_.samples.size()
+            : std::min(wrapped_source_index + 1u, effect_.samples.size() - 1u);
         const auto fraction = source_phase_ % kOplOutputRate;
         const auto first = static_cast<std::int64_t>(
-            static_cast<int>(effect_.samples[source_index]) - 128);
+            static_cast<int>(effect_.samples[wrapped_source_index]) - 128);
         const auto second = static_cast<std::int64_t>(
             static_cast<int>(effect_.samples[next_index]) - 128);
         const auto interpolated =

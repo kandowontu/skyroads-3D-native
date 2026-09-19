@@ -3,6 +3,8 @@
 #include "editor_3d_view.hpp"
 #include "embedded_game_data.hpp"
 #include "expanded_level_menu.hpp"
+#include "kosmonaut_game.hpp"
+#include "wide_road_mesh.hpp"
 
 extern "C" {
 #include "car_sprites.h"
@@ -52,7 +54,8 @@ constexpr std::array<std::uint16_t, 10> kEditorMaterials{
     0u, 1u, 2u, 3u, 5u, 8u, 9u, 10u, 12u, 14u};
 constexpr std::int32_t kOriginalForwardSpeedLimit = 0x2aaa;
 constexpr std::int32_t kOverdriveForwardSpeedLimit = 0x5554;
-constexpr unsigned kNativeSettingsItemCount = 6u;
+constexpr unsigned kMainMenuItemCount = 6u;
+constexpr unsigned kOptionsItemCount = 3u;
 
 std::string fixed_number(std::size_t value, unsigned digits) {
     auto text = std::to_string(value);
@@ -161,42 +164,103 @@ void draw_picture(
     }
 }
 
-void draw_main_menu_editor_label(
-    std::vector<std::uint8_t>& destination,
-    bool selected) {
-    struct MenuGlyph {
-        unsigned width;
-        std::array<std::uint16_t, 16> rows;
-    };
-    static constexpr std::array<MenuGlyph, 6> glyphs{{
-        {9u, {0x1ff,0x1ff,0x1ff,0x1c0,0x1c0,0x1c0,0x1fc,0x1fc,
-              0x1fc,0x1c0,0x1c0,0x1c0,0x1c0,0x1ff,0x1ff,0x1ff}},
-        {8u, {0x007,0x007,0x007,0x077,0x0ff,0x0ff,0x0e7,0x0e7,
-              0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x077}},
-        {3u, {0x007,0x007,0x007,0x000,0x000,0x007,0x007,0x007,
-              0x007,0x007,0x007,0x007,0x007,0x007,0x007,0x007}},
-        {5u, {0x000,0x00e,0x00e,0x01f,0x01f,0x01f,0x00e,0x00e,
-              0x00e,0x00e,0x00e,0x00e,0x00e,0x00f,0x00f,0x007}},
-        {8u, {0x000,0x000,0x000,0x03c,0x07e,0x0ff,0x0e7,0x0e7,
-              0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07e,0x03c}},
-        {5u, {0x000,0x000,0x000,0x01d,0x01f,0x01f,0x01f,0x01c,
-              0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c}},
-    }};
-    constexpr int origin_x = 136;
-    constexpr int origin_y = 183;
+struct MainMenuGlyph {
+    unsigned width;
+    std::array<std::uint16_t, 16> rows;
+};
 
+const MainMenuGlyph& main_menu_glyph(char value) {
+    static constexpr MainMenuGlyph blank{4u, {}};
+    static constexpr MainMenuGlyph upper_e{9u, {
+        0x1ff,0x1ff,0x1ff,0x1c0,0x1c0,0x1c0,0x1fc,0x1fc,
+        0x1fc,0x1c0,0x1c0,0x1c0,0x1c0,0x1ff,0x1ff,0x1ff}};
+    static constexpr MainMenuGlyph upper_k{8u, {
+        0x0e7,0x0e7,0x0ee,0x0ee,0x0fc,0x0fc,0x0f8,0x0f8,
+        0x0fc,0x0fc,0x0ee,0x0ee,0x0e7,0x0e7,0x0e7,0x0e7}};
+    static constexpr MainMenuGlyph upper_o{8u, {
+        0x03c,0x07e,0x0ff,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,
+        0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07e,0x03c}};
+    static constexpr MainMenuGlyph d{8u, {
+        0x007,0x007,0x007,0x077,0x0ff,0x0ff,0x0e7,0x0e7,
+        0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x077}};
+    static constexpr MainMenuGlyph i{3u, {
+        0x007,0x007,0x007,0x000,0x000,0x007,0x007,0x007,
+        0x007,0x007,0x007,0x007,0x007,0x007,0x007,0x007}};
+    static constexpr MainMenuGlyph t{5u, {
+        0x000,0x00e,0x00e,0x01f,0x01f,0x01f,0x00e,0x00e,
+        0x00e,0x00e,0x00e,0x00e,0x00e,0x00f,0x00f,0x007}};
+    static constexpr MainMenuGlyph o{8u, {
+        0x000,0x000,0x000,0x03c,0x07e,0x0ff,0x0e7,0x0e7,
+        0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07e,0x03c}};
+    static constexpr MainMenuGlyph r{5u, {
+        0x000,0x000,0x000,0x01d,0x01f,0x01f,0x01f,0x01c,
+        0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c,0x01c}};
+    static constexpr MainMenuGlyph s{8u, {
+        0x000,0x000,0x000,0x07e,0x0ff,0x0e0,0x0e0,0x0fc,
+        0x07e,0x01f,0x007,0x007,0x0e7,0x0ff,0x0fe,0x07c}};
+    static constexpr MainMenuGlyph m{9u, {
+        0x000,0x000,0x000,0x1c7,0x1ef,0x1ff,0x1ff,0x1db,
+        0x1db,0x1c3,0x1c3,0x1c3,0x1c3,0x1c3,0x1c3,0x1c3}};
+    static constexpr MainMenuGlyph n{8u, {
+        0x000,0x000,0x000,0x0ee,0x0ff,0x0ff,0x0f7,0x0e7,
+        0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7}};
+    static constexpr MainMenuGlyph a{8u, {
+        0x000,0x000,0x000,0x03c,0x07e,0x00f,0x007,0x07f,
+        0x0ff,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07f,0x03b}};
+    static constexpr MainMenuGlyph u{8u, {
+        0x000,0x000,0x000,0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,
+        0x0e7,0x0e7,0x0e7,0x0e7,0x0e7,0x0ff,0x07f,0x03b}};
+    static constexpr MainMenuGlyph p{8u, {
+        0x000,0x000,0x000,0x0fc,0x0ff,0x0e7,0x0e7,0x0e7,
+        0x0ff,0x0fc,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0,0x0e0}};
+    switch (value) {
+    case 'E': return upper_e;
+    case 'K': return upper_k;
+    case 'O': return upper_o;
+    case 'd': return d;
+    case 'i': return i;
+    case 't': return t;
+    case 'o': return o;
+    case 'r': return r;
+    case 's': return s;
+    case 'm': return m;
+    case 'n': return n;
+    case 'a': return a;
+    case 'u': return u;
+    case 'p': return p;
+    default: return blank;
+    }
+}
+
+int main_menu_label_width(std::string_view text) {
+    int width = 0;
+    for (const auto value : text) {
+        width += static_cast<int>(main_menu_glyph(value).width) + 1;
+    }
+    return text.empty() ? 0 : width - 1;
+}
+
+void draw_main_menu_extension_label(
+    std::vector<std::uint8_t>& destination,
+    std::string_view text,
+    int origin_x,
+    int origin_y,
+    bool selected,
+    std::uint8_t body = 0xc0u,
+    std::uint8_t halo = 0xbfu) {
     const auto draw_pass = [&](std::uint8_t color, bool outline) {
         int glyph_x = origin_x;
-        for (const auto& glyph : glyphs) {
+        for (const auto value : text) {
+            const auto& glyph = main_menu_glyph(value);
             for (unsigned row = 0; row < glyph.rows.size(); ++row) {
                 for (unsigned column = 0; column < glyph.width; ++column) {
                     if ((glyph.rows[row] &
                             (1u << (glyph.width - 1u - column))) == 0u) continue;
                     const int radius = outline ? 1 : 0;
-                    for (int offset_y = -radius; offset_y <= radius; ++offset_y) {
-                        for (int offset_x = -radius; offset_x <= radius; ++offset_x) {
-                            const int x = glyph_x + static_cast<int>(column) + offset_x;
-                            const int y = origin_y + static_cast<int>(row) + offset_y;
+                    for (int dy = -radius; dy <= radius; ++dy) {
+                        for (int dx = -radius; dx <= radius; ++dx) {
+                            const int x = glyph_x + static_cast<int>(column) + dx;
+                            const int y = origin_y + static_cast<int>(row) + dy;
                             if (x >= 0 && x < kScreenWidth &&
                                 y >= 0 && y < kScreenHeight) {
                                 destination[static_cast<std::size_t>(y) *
@@ -206,16 +270,11 @@ void draw_main_menu_editor_label(
                     }
                 }
             }
-            glyph_x += static_cast<int>(glyph.width) + 2;
+            glyph_x += static_cast<int>(glyph.width) + 1;
         }
     };
-
-    /* MAINMENU.LZS uses heavy white bodies with a one-pixel yellow halo only
-       around the active word.  The d/t/o/r bodies above are constructed from
-       its original Help p and Controls t/o/r lettering; E and i use the same
-       three-pixel stroke grammar. */
-    if (selected) draw_pass(0xbfu, true);
-    draw_pass(0xc0u, false);
+    if (selected) draw_pass(halo, true);
+    draw_pass(body, false);
 }
 
 struct PictureOwner {
@@ -401,7 +460,8 @@ struct RecoveredGame::Impl {
           hd_road_indexed(kFramebufferSize),
           hd_background_rgba(kFramebufferSize),
           hd_road_rgba(kFramebufferSize),
-          hd_ship_exclusion_mask(kFramebufferSize) {
+          hd_ship_exclusion_mask(kFramebufferSize),
+          kosmonaut(root) {
         load_all();
         load_config_file();
         load_native_config_file();
@@ -449,11 +509,13 @@ struct RecoveredGame::Impl {
     std::vector<std::uint32_t> hd_background_rgba;
     std::vector<std::uint32_t> hd_road_rgba;
     std::vector<RecoveredRoadShape> hd_road_shapes;
+    WideRoadScene wide_scene;
     std::size_t hd_ship_layer{};
     RecoveredShipModel hd_ship_model;
     std::vector<std::uint8_t> hd_ship_exclusion_mask;
     std::uint8_t hd_ship_shadow_palette_index{0x40u};
     bool hd_scene_ready{};
+    KosmonautGame kosmonaut;
 
     SrRoadArchive roads{};
     SrRoadArchive xmas_roads{};
@@ -497,7 +559,9 @@ struct RecoveredGame::Impl {
     unsigned main_selection{};
     SrSettingsMenuState settings_state{};
     unsigned settings_selection{};
+    unsigned options_selection{};
     bool high_definition{};
+    NativeAspectRatio aspect_ratio{NativeAspectRatio::Original};
     bool quit_requested{};
     SrLevelMenuState level_state{};
     SrIntroSequence intro_sequence{};
@@ -530,6 +594,13 @@ struct RecoveredGame::Impl {
     bool previous_jump_control{};
     std::string cheat_status;
     unsigned cheat_status_ticks{};
+    bool kosmonaut_enter_latched{};
+    bool kosmonaut_escape_latched{};
+    bool kosmonaut_pause_latched{};
+    bool kosmonaut_sound_latched{};
+    bool kosmonaut_demo_latched{};
+    bool kosmonaut_backspace_latched{};
+    std::uint8_t kosmonaut_character_latched{};
     std::vector<std::uint8_t> demo_record;
     SrDashboardState dashboard_state{};
     std::size_t road_index{};
@@ -538,6 +609,7 @@ struct RecoveredGame::Impl {
     bool finish_coast_active{};
     std::uint64_t irq_count{};
     std::uint8_t irq_phase{};
+    bool gameplay_escape_latched{};
     std::uint16_t last_random_track{0xffffu};
     std::optional<unsigned> pending_effect;
     bool pending_intro_sample{};
@@ -550,7 +622,23 @@ struct RecoveredGame::Impl {
     static void hd_begin_shape(void* context, std::uint8_t color) {
         auto* self = static_cast<Impl*>(context);
         self->hd_road_shapes.push_back({});
-        self->hd_road_shapes.back().palette_index = color;
+        auto& shape = self->hd_road_shapes.back();
+        shape.palette_index = color;
+        shape.road_row = self->hd_renderer_state.geometry_hooks.current_row;
+        shape.road_column =
+            self->hd_renderer_state.geometry_hooks.current_column;
+        shape.cell_descriptor =
+            self->hd_renderer_state.geometry_hooks.current_cell;
+        shape.pointer_base =
+            self->hd_renderer_state.geometry_hooks.current_pointer_base;
+        shape.shape_offset =
+            self->hd_renderer_state.geometry_hooks.current_shape_offset;
+        shape.pointer_relative =
+            self->hd_renderer_state.geometry_hooks.current_pointer_relative;
+        shape.shape_ordinal =
+            self->hd_renderer_state.geometry_hooks.current_shape_ordinal;
+        shape.direction =
+            self->hd_renderer_state.geometry_hooks.current_direction;
     }
 
     static void hd_shape_span(
@@ -1030,6 +1118,15 @@ struct RecoveredGame::Impl {
         while (std::getline(stream, line)) {
             if (line == "high_definition=1") high_definition = true;
             else if (line == "high_definition=0") high_definition = false;
+            else if (line == "display_aspect=0") {
+                aspect_ratio = NativeAspectRatio::Original;
+            }
+            else if (line == "display_aspect=1") {
+                aspect_ratio = NativeAspectRatio::Widescreen;
+            }
+            else if (line == "display_aspect=2") {
+                aspect_ratio = NativeAspectRatio::UltraWidescreen;
+            }
         }
     }
 
@@ -1037,7 +1134,9 @@ struct RecoveredGame::Impl {
         std::ofstream stream(root / "SKYROADS.NATIVE.CFG", std::ios::trunc);
         if (!stream) return;
         stream << "SKYROADS NATIVE 1\n"
-               << "high_definition=" << (high_definition ? 1 : 0) << '\n';
+               << "high_definition=" << (high_definition ? 1 : 0) << '\n'
+               << "display_aspect="
+               << static_cast<unsigned>(aspect_ratio) << '\n';
     }
 
     void save_config_file() {
@@ -1169,6 +1268,13 @@ struct RecoveredGame::Impl {
             }
         }
         if (map_hd_scene) {
+            wide_scene.ship_colors.resize(wide_scene.ship_indices.size());
+            for (std::size_t i=0;i<wide_scene.ship_indices.size();++i) {
+                wide_scene.ship_colors[i]=palette_color(palette,wide_scene.ship_indices[i]);
+            }
+            for (auto& face : wide_scene.faces) {
+                face.color = palette_color(palette, face.palette_index);
+            }
             for (auto& shape : hd_road_shapes) {
                 shape.color = palette_color(palette, shape.palette_index);
             }
@@ -1374,8 +1480,90 @@ struct RecoveredGame::Impl {
                 }
             }
         }
-        draw_main_menu_editor_label(indexed, main_selection == 3u);
+        constexpr std::array<std::string_view, 3> labels{
+            "Editor", "Options", "Kosmonaut"};
+        constexpr std::array<int, 3> centers{53, 160, 267};
+        for (std::size_t index = 0; index < labels.size(); ++index) {
+            draw_main_menu_extension_label(indexed, labels[index],
+                centers[index] - main_menu_label_width(labels[index]) / 2,
+                183, main_selection == index + SR_MAIN_MENU_ITEM_COUNT);
+        }
         present(main_assets.palette);
+    }
+
+    void draw_options_line(
+        std::string_view text, unsigned y, bool selected, unsigned scale) {
+        const unsigned width = text.empty()
+            ? 0u : static_cast<unsigned>(text.size()) * 6u * scale - scale;
+        const unsigned x = width < static_cast<unsigned>(kScreenWidth)
+            ? (static_cast<unsigned>(kScreenWidth) - width) / 2u : 0u;
+        if (selected) {
+            if (x != 0u) {
+                draw_native_text_scaled(
+                    indexed, x - 1u, y, text, 0xc0u, scale);
+            }
+            draw_native_text_scaled(
+                indexed, x + 1u, y, text, 0xc0u, scale);
+        }
+        draw_native_text_scaled(
+            indexed, x, y, text, selected ? 0xfcu : 0xfbu, scale);
+    }
+
+    void render_options() {
+        indexed = settings_assets.background;
+        const auto title = std::string_view{"Options"};
+        draw_main_menu_extension_label(indexed, title,
+            (kScreenWidth - main_menu_label_width(title)) / 2,
+            10, false, 0xfcu, 0xc0u);
+
+        draw_options_line("HI-DEF POLYGONS", 49u, false, 1u);
+        draw_options_line(high_definition ? "ON" : "OFF", 61u,
+            options_selection == 0u, 2u);
+        draw_options_line("DISPLAY MODE", 101u, false, 1u);
+        const char* aspect_text = "ORIGINAL 8:5";
+        if (aspect_ratio == NativeAspectRatio::Widescreen) {
+            aspect_text = "WIDESCREEN 16:9";
+        }
+        else if (aspect_ratio == NativeAspectRatio::UltraWidescreen) {
+            aspect_text = "ULTRA-WIDE 21:9";
+        }
+        draw_options_line(aspect_text, 113u,
+            options_selection == 1u, 2u);
+        draw_options_line("BACK", 164u, options_selection == 2u, 2u);
+        draw_options_line("ARROWS CHANGE   ESC BACK", 190u, false, 1u);
+        present(settings_assets.palette);
+    }
+
+    void enter_options() {
+        active_screen = NativeScreen::Options;
+        options_selection = 0u;
+        render_options();
+    }
+
+    void leave_options() {
+        save_native_config_file();
+        active_screen = NativeScreen::MainMenu;
+        main_selection = 4u;
+        render_main_menu();
+    }
+
+    void render_kosmonaut() {
+        indexed = kosmonaut.pixels();
+        present(kosmonaut.palette());
+    }
+
+    void enter_kosmonaut() {
+        active_screen = NativeScreen::Kosmonaut;
+        sr_opl_disable_music(&opl);
+        kosmonaut_enter_latched = false;
+        kosmonaut_escape_latched = false;
+        kosmonaut_pause_latched = false;
+        kosmonaut_sound_latched = false;
+        kosmonaut_demo_latched = false;
+        kosmonaut_backspace_latched = false;
+        kosmonaut_character_latched = 0;
+        kosmonaut.enter();
+        render_kosmonaut();
     }
 
     const std::array<std::uint8_t, kPaletteSize>& custom_menu_palette() const {
@@ -1715,13 +1903,6 @@ struct RecoveredGame::Impl {
         if (settings_selection < SR_SETTINGS_MENU_ITEM_COUNT) {
             draw_picture(indexed, settings_assets.pictures[settings_selection].value);
         }
-        const auto display_color = static_cast<std::uint8_t>(
-            settings_selection == 5u ? 0xfcu : 0xfbu);
-        draw_native_rectangle(indexed, 12u, 144u, 76u, 32u, display_color);
-        draw_native_text(indexed, 25u, 150u, "HI DEF", display_color);
-        draw_native_text(indexed, 31u, 162u,
-            high_definition ? "ON" : "OFF",
-            high_definition ? 0xfcu : 0xfbu);
         present(settings_assets.palette);
     }
 
@@ -2060,6 +2241,7 @@ struct RecoveredGame::Impl {
             const auto base_x = static_cast<double>(params.horizontal_sample) - 110.0;
             const auto base_y = 157.0 - params.ship_height_units;
             hd_ship_model.visible = true;
+            hd_ship_model.visibility_mask_required = true;
             hd_ship_model.shadow_visible =
                 params.surface_clearance_units / 5u < SR_SHADOW_FRAME_COUNT;
             hd_ship_model.center_x = base_x + 14.0;
@@ -2106,7 +2288,7 @@ struct RecoveredGame::Impl {
             mark_mask(renderer_state.previous_shadow_offset,
                 renderer_state.previous_ship_mask +
                     SR_SHIP_IMAGE_HEIGHT * SR_SHIP_MASK_WIDTH,
-                SR_SHIP_SHADOW_HEIGHT, &shadow_colors, false);
+                SR_SHIP_SHADOW_HEIGHT, &shadow_colors, true);
             hd_ship_shadow_palette_index = static_cast<std::uint8_t>(
                 std::max_element(shadow_colors.begin(), shadow_colors.end()) -
                 shadow_colors.begin());
@@ -2131,6 +2313,34 @@ struct RecoveredGame::Impl {
                 "Could not decode original VGA road geometry for Hi-Def mode");
         }
         hd_scene_ready = true;
+        build_wide_road_mesh(wide_scene, trek, road.cells, road.row_count,
+            gameplay.position.distance);
+        wide_scene.ship_indices.clear();
+        if(params.ship_frame != 0xffffu && params.ship_frame < cars.frame_count) {
+            wide_scene.ship_x=static_cast<int>(params.horizontal_sample)-110;
+            wide_scene.ship_y=157-static_cast<int>(params.ship_height_units);
+            wide_scene.ship_indices.resize(29*24);
+            for(unsigned y=0;y<24;++y) for(unsigned x=0;x<29;++x) {
+                wide_scene.ship_indices[y*29+x]=cars.pixels[
+                    params.ship_frame_byte_offset+x*24+y];
+            }
+        }
+        if (wide_scene.cockpit_mask.empty()) {
+            wide_scene.cockpit_mask.resize(kFramebufferSize);
+            sr_copy_picture_vga(wide_scene.cockpit_mask.data(),
+                &dashboard.pictures[0]);
+            // Zero-valued pixels inside the dashboard are black detail, not
+            // holes through which the road may show. Its top silhouette is
+            // the only transparent boundary of the cockpit overlay.
+            for (int x = 0; x < kScreenWidth; ++x) {
+                bool inside = false;
+                for (int y = 0; y < kScreenHeight; ++y) {
+                    auto& pixel = wide_scene.cockpit_mask[y*kScreenWidth+x];
+                    inside = inside || pixel != 0;
+                    pixel = inside ? 1 : 0;
+                }
+            }
+        }
         dashboard_input.tick_count = tick_count;
         dashboard_input.forward_speed = gameplay.forward_speed;
         dashboard_input.collision_speed_correction = gameplay.collision_speed_correction;
@@ -2269,7 +2479,10 @@ struct RecoveredGame::Impl {
             controls.jump = demo_input.jump;
         }
         else {
-            live_input.mode = static_cast<SrInputMode>(selected_input_mode);
+            live_input.mode = (input.gamepad_active ||
+                (selected_input_mode == SR_INPUT_JOYSTICK && !input.joystick_connected))
+                ? SR_INPUT_KEYBOARD :
+                static_cast<SrInputMode>(selected_input_mode);
             live_input.key_flags[0] = static_cast<std::uint8_t>(input.up ? 0x80 : 0);
             live_input.key_flags[1] = static_cast<std::uint8_t>(input.down ? 0x80 : 0);
             live_input.key_flags[2] = static_cast<std::uint8_t>(input.left ? 0x80 : 0);
@@ -2602,7 +2815,8 @@ struct RecoveredGame::Impl {
                 quit_requested = true;
                 return;
             }
-            if (key == SR_MENU_KEY_DOWN && main_selection < 3u) {
+            if (key == SR_MENU_KEY_DOWN &&
+                main_selection + 1u < kMainMenuItemCount) {
                 ++main_selection;
                 if (main_selection < SR_MAIN_MENU_ITEM_COUNT) {
                     main_state.selection = static_cast<std::uint16_t>(main_selection);
@@ -2612,15 +2826,28 @@ struct RecoveredGame::Impl {
             }
             if (key == SR_MENU_KEY_UP && main_selection != 0u) {
                 --main_selection;
-                main_state.selection = static_cast<std::uint16_t>(main_selection);
+                if (main_selection < SR_MAIN_MENU_ITEM_COUNT) {
+                    main_state.selection = static_cast<std::uint16_t>(main_selection);
+                }
                 render_main_menu();
                 return;
             }
-            if (main_selection == 3u &&
-                (key == SR_MENU_KEY_ENTER || key == SR_MENU_KEY_ESCAPE)) {
+            if (main_selection == 3u && key == SR_MENU_KEY_ENTER) {
                 custom_browser_original_levels = false;
                 custom_browser_selection = 0u;
                 enter_custom_browser();
+                return;
+            }
+            if (main_selection == 4u && key == SR_MENU_KEY_ENTER) {
+                enter_options();
+                return;
+            }
+            if (main_selection == 5u && key == SR_MENU_KEY_ENTER) {
+                enter_kosmonaut();
+                return;
+            }
+            if (main_selection >= SR_MAIN_MENU_ITEM_COUNT) {
+                render_main_menu();
                 return;
             }
             main_state.selection = static_cast<std::uint16_t>(main_selection);
@@ -2631,30 +2858,40 @@ struct RecoveredGame::Impl {
             }
             else render_main_menu();
         }
+        else if (active_screen == NativeScreen::Options && key != 0) {
+            if (key == SR_MENU_KEY_ESCAPE) {
+                leave_options();
+                return;
+            }
+            if (key == SR_MENU_KEY_UP && options_selection != 0u) {
+                --options_selection;
+            }
+            else if (key == SR_MENU_KEY_DOWN &&
+                options_selection + 1u < kOptionsItemCount) {
+                ++options_selection;
+            }
+            else if (options_selection == 0u &&
+                (key == SR_MENU_KEY_LEFT || key == SR_MENU_KEY_RIGHT ||
+                 key == SR_MENU_KEY_ENTER)) {
+                high_definition = !high_definition;
+                save_native_config_file();
+            }
+            else if (options_selection == 1u &&
+                (key == SR_MENU_KEY_LEFT || key == SR_MENU_KEY_RIGHT ||
+                 key == SR_MENU_KEY_ENTER)) {
+                auto value = static_cast<unsigned>(aspect_ratio);
+                value = key == SR_MENU_KEY_LEFT
+                    ? (value + 2u) % 3u : (value + 1u) % 3u;
+                aspect_ratio = static_cast<NativeAspectRatio>(value);
+                save_native_config_file();
+            }
+            else if (options_selection == 2u && key == SR_MENU_KEY_ENTER) {
+                leave_options();
+                return;
+            }
+            render_options();
+        }
         else if (active_screen == NativeScreen::Settings && key != 0) {
-            if (settings_selection == 5u) {
-                if (key == SR_MENU_KEY_ESCAPE) {
-                    save_config_file();
-                    sr_menu_flow_settings_exit(&menu_flow);
-                }
-                else {
-                    if (key == SR_MENU_KEY_UP) {
-                        settings_selection = 3u;
-                        settings_state.selection = 3u;
-                    }
-                    else if (key == SR_MENU_KEY_ENTER) {
-                        high_definition = !high_definition;
-                        save_native_config_file();
-                    }
-                    render_settings();
-                }
-                return;
-            }
-            if (key == SR_MENU_KEY_DOWN && settings_selection >= 3u) {
-                settings_selection = kNativeSettingsItemCount - 1u;
-                render_settings();
-                return;
-            }
             const auto event = sr_settings_menu_key(&settings_state, key);
             settings_selection = settings_state.selection;
             selected_input_mode = settings_state.selected_input_mode;
@@ -2693,8 +2930,48 @@ struct RecoveredGame::Impl {
         latest_input = input;
         ++irq_count;
         sr_opl_tick(&opl);
-        handle_native_cheats(input);
-        if (active_screen == NativeScreen::Intro) {
+        if (active_screen == NativeScreen::Kosmonaut) {
+            kosmonaut_enter_latched =
+                kosmonaut_enter_latched || input.enter_pressed;
+            kosmonaut_escape_latched =
+                kosmonaut_escape_latched || input.escape_pressed;
+            kosmonaut_pause_latched =
+                kosmonaut_pause_latched || input.editor_play_pressed;
+            kosmonaut_sound_latched =
+                kosmonaut_sound_latched || input.editor_save_pressed;
+            kosmonaut_demo_latched =
+                kosmonaut_demo_latched || input.kosmonaut_demo_pressed;
+            kosmonaut_backspace_latched =
+                kosmonaut_backspace_latched || input.backspace_pressed;
+            if (input.text_character != 0u) {
+                kosmonaut_character_latched = input.text_character;
+            }
+            /* Kosmonaut's EGA span renderer was CPU-bound on its target 386.
+               One step per DOS timer decade reproduces the roughly 18 Hz
+               pacing of the 3,000-cycle reference capture; running it on the
+               shared 36 Hz SkyRoads cadence makes every simulation constant
+               appear twice as fast. */
+            if (irq_phase == 0) {
+                auto kosmonaut_input = input;
+                kosmonaut_input.enter_pressed = kosmonaut_enter_latched;
+                kosmonaut_input.escape_pressed = kosmonaut_escape_latched;
+                kosmonaut_input.editor_play_pressed = kosmonaut_pause_latched;
+                kosmonaut_input.editor_save_pressed = kosmonaut_sound_latched;
+                kosmonaut_input.kosmonaut_demo_pressed = kosmonaut_demo_latched;
+                kosmonaut_input.backspace_pressed = kosmonaut_backspace_latched;
+                kosmonaut_input.text_character = kosmonaut_character_latched;
+                kosmonaut_enter_latched = false;
+                kosmonaut_escape_latched = false;
+                kosmonaut_pause_latched = false;
+                kosmonaut_sound_latched = false;
+                kosmonaut_demo_latched = false;
+                kosmonaut_backspace_latched = false;
+                kosmonaut_character_latched = 0;
+                if (kosmonaut.tick(kosmonaut_input)) enter_main_menu(true);
+                else render_kosmonaut();
+            }
+        }
+        else if (active_screen == NativeScreen::Intro) {
             if (irq_phase == 0 || irq_phase == 5) intro_tick(input);
         }
         else if (active_screen == NativeScreen::LevelTransition ||
@@ -2703,8 +2980,13 @@ struct RecoveredGame::Impl {
         }
         else if (active_screen == NativeScreen::Playing ||
             active_screen == NativeScreen::Demo) {
+            handle_native_cheats(input);
+            gameplay_escape_latched = gameplay_escape_latched || input.escape_pressed;
             if (irq_phase == 0 || irq_phase == 5) {
-                gameplay_tick(input);
+                auto sampled_input = input;
+                sampled_input.escape_pressed = gameplay_escape_latched;
+                gameplay_escape_latched = false;
+                gameplay_tick(sampled_input);
             }
         }
         else {
@@ -2775,8 +3057,16 @@ std::uint16_t RecoveredGame::selected_input_mode() const {
     return impl_->selected_input_mode;
 }
 
+const WideRoadScene& RecoveredGame::wide_road_scene() const {
+    return impl_->wide_scene;
+}
+
 bool RecoveredGame::high_definition_enabled() const {
     return impl_->high_definition;
+}
+
+NativeAspectRatio RecoveredGame::aspect_ratio_mode() const {
+    return impl_->aspect_ratio;
 }
 
 bool RecoveredGame::quit_requested() const {
@@ -2899,6 +3189,14 @@ std::vector<std::uint8_t> RecoveredGame::consume_palette_trace() {
 }
 
 std::optional<PcmEffect> RecoveredGame::consume_pcm_effect() {
+    if (auto sound = impl_->kosmonaut.consume_sound()) {
+        PcmEffect result;
+        result.effect = sound->effect;
+        result.sample_rate = sound->sample_rate;
+        result.samples = std::move(sound->samples);
+        result.loop = sound->loop;
+        return result;
+    }
     if (impl_->pending_intro_sample) {
         impl_->pending_intro_sample = false;
         PcmEffect result;
